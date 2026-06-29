@@ -993,6 +993,32 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <div class="stat-card blue"><div class="stat-icon blue">📝</div><div><div class="stat-val" id="st-reports">—</div><div class="stat-lbl" data-fr="Rapports reçus" data-ar="التقارير المستلمة">Rapports reçus</div></div></div>
         </div>
 
+        <!-- ═══ PANEL UTILISATEURS EN LIGNE (superadmin uniquement) ═══ -->
+        <div id="online-users-panel" class="panel section-hidden" style="margin-bottom:18px;">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title" style="display:flex;align-items:center;gap:10px;">
+                Utilisateurs connectés
+                <span id="online-count-badge" style="
+                  background:rgba(0,230,118,.15);color:var(--green);
+                  border:1px solid rgba(0,230,118,.3);border-radius:20px;
+                  padding:2px 10px;font-size:.72rem;font-weight:700;
+                ">0</span>
+                <span id="online-live-dot" style="
+                  width:8px;height:8px;border-radius:50%;
+                  background:var(--green);display:inline-block;
+                  animation:pulse 1.5s infinite;
+                "></span>
+              </div>
+              <div class="panel-subtitle">Mis à jour automatiquement toutes les 15 secondes</div>
+            </div>
+            <button class="action-btn gray" onclick="loadOnlineUsers()" style="font-size:.78rem;">⟳ Actualiser</button>
+          </div>
+          <div id="online-users-body" style="min-height:60px;">
+            <div style="text-align:center;padding:20px;color:var(--text3);font-size:.85rem;">Chargement…</div>
+          </div>
+        </div>
+
         <!-- Actions rapides Admin -->
         <div class="quick-actions">
           <div class="quick-action" onclick="showSection('branches')">
@@ -1527,6 +1553,13 @@ async function doLogin() {
 }
 
 function doLogout() {
+  // Arrêter le heartbeat
+  if (window._heartbeatInterval) { clearInterval(window._heartbeatInterval); window._heartbeatInterval = null; }
+  if (window._onlineUsersInterval) { clearInterval(window._onlineUsersInterval); window._onlineUsersInterval = null; }
+  // Notifier le backend (fire & forget)
+  if (STATE.token) {
+    fetch('/api/auth/logout', { method:'DELETE', headers:{'Authorization':'Bearer '+STATE.token} }).catch(()=>{});
+  }
   STATE.token = null; STATE.user = null; STATE.myBranch = null;
   localStorage.removeItem('codiss_token');
   localStorage.removeItem('codiss_user');
@@ -1569,6 +1602,27 @@ function initApp() {
     loadDashboard();
   }
   loadNotifications();
+
+  // ── Heartbeat : signaler sa présence toutes les 30s ──
+  function sendHeartbeat() {
+    if (!STATE.token) return;
+    fetch('/api/auth/heartbeat', {
+      method: 'POST',
+      headers: { 'Authorization':'Bearer '+STATE.token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ page: STATE.currentPage || 'dashboard' })
+    }).catch(()=>{});
+  }
+  sendHeartbeat(); // immédiat au login
+  if (window._heartbeatInterval) clearInterval(window._heartbeatInterval);
+  window._heartbeatInterval = setInterval(sendHeartbeat, 30000);
+
+  // ── Panel "en ligne" visible uniquement pour le superadmin ──
+  if (u.role === 'superadmin') {
+    document.getElementById('online-users-panel').classList.remove('section-hidden');
+    loadOnlineUsers();
+    if (window._onlineUsersInterval) clearInterval(window._onlineUsersInterval);
+    window._onlineUsersInterval = setInterval(loadOnlineUsers, 15000);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1586,6 +1640,7 @@ const PAGE_TITLES = {
 };
 
 function showSection(name) {
+  STATE.currentPage = name; // pour le heartbeat
   ALL_SECTIONS.forEach(s => {
     const el = document.getElementById('section-' + s);
     if (el) el.classList.toggle('section-hidden', s !== name);
@@ -1665,6 +1720,92 @@ function renderCoverageList(coverage) {
         <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${r.district||''}</div>
       </div>`;
     }).join('') + '</div>';
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILISATEURS EN LIGNE (superadmin)
+// ═══════════════════════════════════════════════════════
+const PAGE_LABELS = {
+  dashboard:'Tableau de bord', map:'Carte nationale', branches:'Branches',
+  reports:'Rapports', users:'Utilisateurs', profile:'Mon profil',
+  'new-report':'Nouveau rapport', 'my-reports':'Mes rapports', 'my-branch':'Ma branche'
+};
+const ROLE_COLORS = {
+  superadmin:'rgba(224,64,251,.15)',admin:'rgba(255,145,0,.15)',
+  branch:'rgba(68,138,255,.15)',viewer:'rgba(100,116,139,.15)'
+};
+const ROLE_TEXT = {
+  superadmin:'var(--purple)',admin:'var(--orange)',
+  branch:'var(--blue)',viewer:'var(--text3)'
+};
+const ROLE_LABELS = {
+  superadmin:'Super Admin',admin:'Admin',branch:'Secrétaire',viewer:'Observateur'
+};
+
+function formatDuration(secs) {
+  if (secs < 60) return secs + 's';
+  const m = Math.floor(secs / 60), s = secs % 60;
+  if (m < 60) return `${m}m ${s}s`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return `${h}h ${rm}m`;
+}
+
+async function loadOnlineUsers() {
+  const body = document.getElementById('online-users-body');
+  const badge = document.getElementById('online-count-badge');
+  try {
+    const users = await api('GET', '/admin/online-users');
+    badge.textContent = users.length;
+    if (!users.length) {
+      body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:.85rem;">
+        Aucun autre utilisateur connecté actuellement.</div>`;
+      return;
+    }
+    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;padding:4px 0;">
+      ${users.map(u => {
+        const initials = u.full_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        const pageLbl = PAGE_LABELS[u.current_page] || u.current_page;
+        const connectedAt = new Date(u.connected_at + 'Z').toLocaleTimeString('fr-CI',{hour:'2-digit',minute:'2-digit'});
+        return `<div style="
+          background:var(--bg4);border-radius:12px;padding:14px 16px;
+          border:1px solid rgba(255,255,255,.07);
+          display:flex;align-items:center;gap:12px;
+          transition:.2s;
+        ">
+          <div style="position:relative;flex-shrink:0;">
+            <div style="
+              width:44px;height:44px;border-radius:12px;
+              background:${ROLE_COLORS[u.role]||'rgba(100,116,139,.15)'};
+              color:${ROLE_TEXT[u.role]||'var(--text2)'};
+              display:flex;align-items:center;justify-content:center;
+              font-size:1rem;font-weight:800;
+            ">${initials}</div>
+            <span style="
+              position:absolute;bottom:-2px;right:-2px;
+              width:11px;height:11px;border-radius:50%;
+              background:var(--green);border:2px solid var(--bg4);
+            "></span>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.88rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.full_name}</div>
+            <div style="font-size:.73rem;color:${ROLE_TEXT[u.role]||'var(--text3)'};margin-top:2px;font-weight:600;">${ROLE_LABELS[u.role]||u.role}</div>
+            <div style="display:flex;gap:10px;margin-top:5px;flex-wrap:wrap;">
+              <span style="font-size:.72rem;color:var(--text3);">📍 ${pageLbl}</span>
+              <span style="font-size:.72rem;color:var(--text3);">🕐 Connecté à ${connectedAt}</span>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="
+              font-size:1rem;font-weight:900;color:var(--green);line-height:1;
+            ">${formatDuration(u.duration_secs)}</div>
+            <div style="font-size:.68rem;color:var(--text3);margin-top:2px;">en ligne</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-error">Erreur: ${e.message}</div>`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2886,109 +3027,4 @@ let _currentReportData = null;
 
 async function showReportDetail(id) {
   document.getElementById('modal-report-title').textContent = STATE.lang==='fr'?'Détail du rapport':'Report Detail';
-  document.getElementById('modal-report-body').innerHTML = `<div style="color:var(--text3)">${t('loading')}</div>`;
-  document.getElementById('modal-report').classList.remove('modal-hidden');
-  try {
-    const r = await api('GET', `/reports/${id}`);
-    _currentReportData = r;
-    let answersHtml = '';
-    if (r.form_answers && r.form_answers.length) {
-      answersHtml = '<hr style="border:none;border-top:1px solid var(--gray2);margin:14px 0"/><div style="font-weight:700;margin-bottom:12px;color:var(--green)">Questionnaire CODISS</div>' +
-        r.form_answers.map((a,i) => `
-          <div style="margin-bottom:10px;background:var(--bg4);padding:10px 14px;border-radius:8px">
-            <div style="font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:4px">${i+1}. ${a.question}</div>
-            <div style="font-size:.88rem">${a.answer||'<em style="color:var(--text3)">Non renseigné</em>'}</div>
-          </div>`).join('');
-    }
-
-    // Fil rejet / réponse
-    let threadHtml = '';
-    if (r.review_notes || r.branch_response) {
-      threadHtml = `<hr style="border:none;border-top:1px solid var(--gray2);margin:14px 0"/>
-        <div style="font-weight:700;margin-bottom:12px;color:var(--red)">💬 ${STATE.lang==='fr'?'Échanges sur ce rapport':'Report exchanges'}</div>`;
-      if (r.review_notes) {
-        threadHtml += `
-          <div style="display:flex;gap:10px;margin-bottom:12px">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">🛡</div>
-            <div style="flex:1">
-              <div style="font-size:.7rem;font-weight:800;color:var(--red);margin-bottom:4px">${STATE.lang==='fr'?'ADMINISTRATION — Motif du rejet':'ADMINISTRATION — Rejection reason'}</div>
-              <div style="background:rgba(255,23,68,.12);border-radius:0 10px 10px 10px;padding:10px 14px;font-size:.88rem">${r.review_notes}</div>
-              ${r.reviewed_at?`<div style="font-size:.7rem;color:var(--text3);margin-top:3px">${new Date(r.reviewed_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US')}</div>`:''}
-            </div>
-          </div>`;
-      }
-      if (r.branch_response) {
-        threadHtml += `
-          <div style="display:flex;gap:10px;flex-direction:row-reverse;margin-bottom:12px">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">👤</div>
-            <div style="flex:1;text-align:right">
-              <div style="font-size:.7rem;font-weight:800;color:var(--blue);margin-bottom:4px">${STATE.lang==='fr'?'SECRÉTAIRE — Réponse':'SECRETARY — Reply'}</div>
-              <div style="background:rgba(68,138,255,.12);border-radius:10px 0 10px 10px;padding:10px 14px;font-size:.88rem;text-align:left">${r.branch_response}</div>
-            </div>
-          </div>`;
-      }
-      if (r.status === 'rejected' && !r.branch_response && STATE.user && STATE.user.role === 'branch') {
-        threadHtml += `<div style="text-align:center;margin-top:6px">
-          <button class="action-btn blue" onclick="openReplyModal('${r.id}','${(r.title||'').replace(/'/g,"\\'")}','${(r.review_notes||'').replace(/'/g,"\\'").replace(/\n/g,' ')}');closeModal('modal-report')">
-            💬 ${STATE.lang==='fr'?'Répondre à ce rejet':'Reply to this rejection'}
-          </button></div>`;
-      }
-    }
-
-    document.getElementById('modal-report-body').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-        <div><span style="font-size:.78rem;color:var(--text2)">Type</span><br><strong>${r.report_type}</strong></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">Statut</span><br><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">Date</span><br><strong>${r.created_at?new Date(r.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):'—'}</strong></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">GPS</span><br><strong>${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</strong></div>
-      </div>
-      ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${r.description}</div>`:''}
-      ${threadHtml}
-      ${answersHtml}`;
-  } catch(e) { document.getElementById('modal-report-body').innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
-}
-
-function exportReportPDF() {
-  const r = _currentReportData;
-  if (!r) return;
-  const answersHtml = (r.form_answers && r.form_answers.length)
-    ? `<div class="pdf-section">
-        <div class="pdf-section-title">Questionnaire CODISS</div>
-        ${r.form_answers.map((a,i)=>`
-          <div class="q-block">
-            <div class="q">${i+1}. ${a.question}</div>
-            <div class="a">${a.answer||'<em>Non renseigné</em>'}</div>
-          </div>`).join('')}
-      </div>`
-    : '';
-  const html = pdfHeader(`Rapport — ${r.title}`, `Type: ${r.report_type} | Statut: ${t('status_'+r.status)||r.status}`) + `
-    <div class="stats-row">
-      <div class="stat-box"><div class="stat-val" style="font-size:1rem">${r.report_type}</div><div class="stat-lbl">Type de rapport</div></div>
-      <div class="stat-box ${r.status==='approved'?'':'orange'}"><div class="stat-val" style="font-size:1rem">${t('status_'+r.status)||r.status}</div><div class="stat-lbl">Statut</div></div>
-      <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</div><div class="stat-lbl">Date soumission</div></div>
-      <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</div><div class="stat-lbl">Coordonnées GPS</div></div>
-    </div>
-    ${r.description?`<div class="pdf-section"><div class="pdf-section-title">Description</div><p style="font-size:.88rem;line-height:1.6">${r.description}</p></div>`:''}
-    ${answersHtml}
-    ${pdfFooter()}`;
-  openPDF(html);
-}
-
-// ═══════════════════════════════════════════════════════
-// AUTO-LOGIN
-// ═══════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
-  const token = localStorage.getItem('codiss_token');
-  const user  = localStorage.getItem('codiss_user');
-  if (token && user) {
-    try {
-      STATE.token = token;
-      STATE.user  = JSON.parse(user);
-      STATE.lang  = STATE.user.lang || 'fr';
-      initApp();
-    } catch(e) { doLogout(); }
-  }
-});
-</script>
-</body>
-</html>
+  document.getE

@@ -13,6 +13,16 @@ from database_local import Base
 def new_uuid():
     return str(uuid.uuid4())
 
+class ActiveSession(Base):
+    """Session utilisateur en cours — mise à jour toutes les 30s via heartbeat."""
+    __tablename__ = "active_sessions"
+    id           = Column(String(36), primary_key=True, default=new_uuid)
+    user_id      = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True)
+    connected_at = Column(DateTime, default=datetime.utcnow)
+    last_seen    = Column(DateTime, default=datetime.utcnow)
+    current_page = Column(String(100), default="dashboard")
+    user         = relationship("User", foreign_keys=[user_id])
+
 class Region(Base):
     __tablename__ = "regions"
     id         = Column(Integer, primary_key=True)
@@ -130,17 +140,4 @@ class ActivityLog(Base):
     action     = Column(String(100), nullable=False)
     details    = Column(JSON)
     ip_address = Column(String(45))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class Notification(Base):
-    __tablename__ = "notifications"
-    id         = Column(String(36), primary_key=True, default=new_uuid)
-    user_id    = Column(String(36), ForeignKey("users.id"))
-    title_fr   = Column(String(255), nullable=False)
-    title_en   = Column(String(255))
-    body_fr    = Column(Text)
-    body_en    = Column(Text)
-    type       = Column(String(30), default="info")
-    is_read    = Column(Boolean, default=False)
-    link       = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, def

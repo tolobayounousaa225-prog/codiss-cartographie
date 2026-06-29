@@ -26,7 +26,7 @@ def parse_date(val):
 from database_local import engine, Base, get_db, AsyncSessionLocal
 from models_local import (
     User, Branch, BranchUser, PresenceReport,
-    ReportFormAnswer, ActivityLog, Notification, Region
+    ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, distinct
@@ -149,6 +149,66 @@ async def me(u: User = Depends(current_user)):
 async def set_lang(language: str, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     await db.execute(update(User).where(User.id == u.id).values(language=language))
     return {"ok": True}
+
+# ── Heartbeat ──────────────────────────────────────────────────
+@app.post("/api/auth/heartbeat")
+async def heartbeat(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Appelé toutes les 30s par le frontend pour maintenir la session active."""
+    page = data.get("page", "dashboard")[:100]
+    r = await db.execute(select(ActiveSession).where(ActiveSession.user_id == u.id))
+    sess = r.scalar_one_or_none()
+    if sess:
+        await db.execute(
+            update(ActiveSession)
+            .where(ActiveSession.user_id == u.id)
+            .values(last_seen=datetime.utcnow(), current_page=page)
+        )
+    else:
+        db.add(ActiveSession(user_id=u.id, current_page=page, connected_at=datetime.utcnow()))
+    await db.commit()
+    return {"ok": True}
+
+@app.delete("/api/auth/logout")
+async def logout(u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Supprime la session active à la déconnexion."""
+    await db.execute(
+        select(ActiveSession).where(ActiveSession.user_id == u.id)
+    )
+    r = await db.execute(select(ActiveSession).where(ActiveSession.user_id == u.id))
+    sess = r.scalar_one_or_none()
+    if sess:
+        await db.delete(sess)
+        await db.commit()
+    return {"ok": True}
+
+# ── Utilisateurs en ligne (super admin uniquement) ─────────────
+@app.get("/api/admin/online-users")
+async def online_users(u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if u.role != "superadmin":
+        raise HTTPException(403, "Réservé au super admin")
+    cutoff = datetime.utcnow() - timedelta(seconds=90)  # actif dans les 90 dernières secondes
+    r = await db.execute(
+        select(ActiveSession, User)
+        .join(User, ActiveSession.user_id == User.id)
+        .where(ActiveSession.last_seen >= cutoff)
+        .order_by(ActiveSession.connected_at)
+    )
+    rows = r.all()
+    now = datetime.utcnow()
+    result = []
+    for sess, usr in rows:
+        duration = int((now - sess.connected_at).total_seconds())
+        result.append({
+            "user_id":       usr.id,
+            "full_name":     usr.full_name,
+            "role":          usr.role,
+            "email":         usr.email,
+            "current_page":  sess.current_page,
+            "connected_at":  sess.connected_at.isoformat(),
+            "last_seen":     sess.last_seen.isoformat(),
+            "duration_secs": duration,
+        })
+    return result
 
 # ══════════════════════════════════════════════════════
 # BRANCHES
@@ -544,80 +604,4 @@ async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(ad
 # ══════════════════════════════════════════════════════
 # AUTO-SÉLECTION DE BRANCHE (par le secrétaire lui-même)
 # ══════════════════════════════════════════════════════
-@app.post("/api/auth/me/select-branch")
-async def self_select_branch(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    if u.role != "branch":
-        raise HTTPException(403, "Réservé aux secrétaires de branche")
-    branch_id = data.get("branch_id")
-    if not branch_id:
-        raise HTTPException(400, "branch_id requis")
-    b = await db.get(Branch, branch_id)
-    if not b:
-        raise HTTPException(404, "Branche introuvable")
-    # Supprimer l'ancienne liaison si elle existe
-    existing = await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))
-    old = existing.scalar_one_or_none()
-    if old:
-        await db.delete(old)
-        await db.flush()
-    bu = BranchUser(user_id=u.id, branch_id=branch_id, role="secretary")
-    db.add(bu)
-    return {"ok": True, "branch": _branch_dict(b)}
-
-# ══════════════════════════════════════════════════════
-# RÉCUPÉRATION D'ACCÈS
-# ══════════════════════════════════════════════════════
-import random, string
-
-def gen_temp_password(length=10):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choices(chars, k=length))
-
-@app.post("/api/auth/forgot-password")
-async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
-    """Génère un mot de passe temporaire — affiche sur écran (pas d'email en local)."""
-    email = (data.get("email") or "").strip().lower()
-    if not email:
-        raise HTTPException(400, "Email requis")
-    r = await db.execute(select(User).where(User.email == email))
-    u = r.scalar_one_or_none()
-    if not u:
-        # Réponse neutre pour ne pas révéler si l'email existe
-        raise HTTPException(404, "Aucun compte trouvé pour cet email.")
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    return {
-        "ok": True,
-        "full_name": u.full_name,
-        "temp_password": temp,
-        "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."
-    }
-
-@app.post("/api/auth/find-by-name")
-async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
-    """Retrouve un email à partir d'un nom complet (partiel)."""
-    name = (data.get("name") or "").strip()
-    if len(name) < 3:
-        raise HTTPException(400, "Entrez au moins 3 caractères")
-    r = await db.execute(
-        select(User).where(User.full_name.ilike(f"%{name}%")).limit(5)
-    )
-    users = r.scalars().all()
-    if not users:
-        raise HTTPException(404, "Aucun compte trouvé pour ce nom.")
-    # Masque partiellement l'email : ab***@codiss.ci
-    def mask_email(email):
-        parts = email.split("@")
-        local = parts[0]
-        shown = local[:2] + "*" * max(2, len(local)-4) + local[-2:] if len(local) > 4 else local[:1] + "***"
-        return shown + "@" + parts[1]
-    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
-
-@app.post("/api/admin/users/{uid}/reset-password")
-async def admin_reset_password(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
-    """Réinitialise le mot de passe d'un utilisateur (admin uniquement)."""
-    u = await db.get(User, uid)
-    if not u: raise HTTPException(404)
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    return {"ok": True, "full_name": u.full_name, "temp_password": temp}
+@app.post("/api/auth/me/select-branch"
