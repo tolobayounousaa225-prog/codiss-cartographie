@@ -53,19 +53,22 @@ def verify_password(p, h):
     except Exception:
         return False
 
-# ── Email d'invitation ────────────────────────────────────────
-GMAIL_USER     = os.environ.get("GMAIL_USER", "")
-GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+# ── Email d'invitation (SMTP générique — Brevo, Gmail, etc.) ──
+SMTP_HOST     = os.environ.get("SMTP_HOST", "smtp-relay.brevo.com")
+SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_LOGIN    = os.environ.get("SMTP_LOGIN", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM     = os.environ.get("SMTP_FROM", SMTP_LOGIN)
 
 def send_invitation_email(to_email: str, full_name: str, setup_link: str) -> bool:
     """Envoie l'email d'invitation avec le lien de définition de mot de passe."""
-    if not GMAIL_USER or not GMAIL_PASSWORD:
-        print(f"⚠️  Email non configuré. Lien de setup : {setup_link}")
+    if not SMTP_LOGIN or not SMTP_PASSWORD:
+        print(f"⚠️  SMTP non configuré. Lien de setup : {setup_link}")
         return False
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Votre accès CODISS — Définissez votre mot de passe"
-        msg["From"]    = f"CODISS Cartographie <{GMAIL_USER}>"
+        msg["From"]    = f"CODISS Cartographie <{SMTP_FROM}>"
         msg["To"]      = to_email
 
         html = f"""
@@ -101,10 +104,10 @@ def send_invitation_email(to_email: str, full_name: str, setup_link: str) -> boo
         msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
 
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(GMAIL_USER, GMAIL_PASSWORD)
-            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_LOGIN, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM, to_email, msg.as_string())
         return True
     except Exception as e:
         print(f"❌ Erreur envoi email : {e}")
@@ -689,4 +692,4 @@ async def update_profile(data: dict, u: User = Depends(current_user), db: AsyncS
 @app.patch("/api/auth/me/password")
 async def change_password(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     if not verify_password(data.get("current_password", ""), u.password_hash):
-        raise HTTPException(400, "Mot de passe actuel incorrect")
+        
