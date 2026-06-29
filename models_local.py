@@ -114,13 +114,13 @@ class PresenceReport(Base):
     status            = Column(String(20), default="submitted")
     reviewed_by       = Column(String(36), ForeignKey("users.id"))
     reviewed_at       = Column(DateTime)
-    review_notes      = Column(Text)   # motif du rejet (admin)
-    branch_response   = Column(Text)   # réponse du secrétaire au rejet
-    viewed_by_admin   = Column(Boolean, default=False)  # l'admin a ouvert le rapport
-    viewed_at         = Column(DateTime)                # heure de lecture par l'admin
+    review_notes      = Column(Text)
+    branch_response   = Column(Text)
+    viewed_by_admin   = Column(Boolean, default=False)
+    viewed_at         = Column(DateTime)
     period_start      = Column(Date)
     period_end        = Column(Date)
-    photos_urls       = Column(Text)       # JSON string en SQLite
+    photos_urls       = Column(Text)
     documents_urls    = Column(Text)
     created_at        = Column(DateTime, default=datetime.utcnow)
     updated_at        = Column(DateTime, default=datetime.utcnow)
@@ -139,3 +139,22 @@ class ReportFormAnswer(Base):
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
     id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(String(36), ForeignKey("users.id"))
+    branch_id  = Column(String(36), ForeignKey("branches.id"))
+    action     = Column(String(100), nullable=False)
+    details    = Column(JSON)
+    ip_address = Column(String(45))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id         = Column(String(36), primary_key=True, default=new_uuid)
+    user_id    = Column(String(36), ForeignKey("users.id"))
+    title_fr   = Column(String(255), nullable=False)
+    title_en   = Column(String(255))
+    body_fr    = Column(Text)
+    body_en    = Column(Text)
+    type       = Column(String(30), default="info")
+    is_read    = Column(Boolean, default=False)
+    link       = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
