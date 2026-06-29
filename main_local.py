@@ -235,7 +235,8 @@ async def create_branch(data: dict, db: AsyncSession = Depends(get_db), _=Depend
     if ex.scalar_one_or_none(): raise HTTPException(400, "Code déjà utilisé")
     b = Branch(**{k: v for k, v in data.items() if hasattr(Branch, k)})
     db.add(b)
-    await db.flush()
+    await db.commit()
+    await db.refresh(b)
     return _branch_dict(b)
 
 @app.patch("/api/branches/{bid}")
@@ -244,6 +245,8 @@ async def update_branch(bid: str, data: dict, db: AsyncSession = Depends(get_db)
     if not b: raise HTTPException(404)
     for k, v in data.items():
         if hasattr(b, k) and v is not None: setattr(b, k, v)
+    await db.commit()
+    await db.refresh(b)
     return _branch_dict(b)
 
 @app.post("/api/branches/{bid}/verify")
@@ -252,6 +255,7 @@ async def verify_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(
     if not b: raise HTTPException(404)
     b.is_verified = True; b.verified_at = datetime.utcnow()
     b.verified_by = u.id; b.status = "active"
+    await db.commit()
     return {"message": f"{b.name} vérifiée et activée"}
 
 @app.post("/api/branches/{bid}/assign-user")
@@ -345,6 +349,8 @@ async def submit_report(data: dict, db: AsyncSession = Depends(get_db), u: User 
         branch.latitude  = lat
         branch.longitude = lng
 
+    await db.commit()
+    await db.refresh(report)
     return _report_dict(report)
 
 @app.get("/api/reports")
@@ -387,6 +393,7 @@ async def review_report(rid: str, data: dict, db: AsyncSession = Depends(get_db)
             body_en=f"Your report has been {verdict_en} by administration.{motif_en}",
             type="success" if status == "approved" else "warning",
         ))
+    await db.commit()
     return {"ok": True, "status": status}
 
 @app.patch("/api/reports/{rid}/respond")
@@ -412,6 +419,7 @@ async def respond_to_rejection(rid: str, data: dict, db: AsyncSession = Depends(
             body_en=f"{u.full_name} replied to their report rejection.",
             type="info",
         ))
+    await db.commit()
     return {"ok": True}
 
 def _report_dict(r):
@@ -517,7 +525,8 @@ async def create_user(data: dict, db: AsyncSession = Depends(get_db), _=Depends(
              full_name=data["full_name"], phone=data.get("phone"),
              role=data.get("role","branch"), language=data.get("language","fr"))
     db.add(u)
-    await db.flush()
+    await db.commit()
+    await db.refresh(u)
     return {"id": u.id, "email": u.email, "full_name": u.full_name, "role": u.role, "is_active": u.is_active, "created_at": u.created_at.isoformat()}
 
 @app.patch("/api/admin/users/{uid}/toggle-active")
@@ -525,6 +534,7 @@ async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(ad
     u = await db.get(User, uid)
     if not u: raise HTTPException(404)
     u.is_active = not u.is_active
+    await db.commit()
     return {"is_active": u.is_active}
 
 @app.get("/api/admin/notifications")
@@ -538,7 +548,9 @@ async def get_notifs(db: AsyncSession = Depends(get_db), u: User = Depends(curre
 @app.patch("/api/admin/notifications/{nid}/read")
 async def mark_read(nid: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
     n = await db.get(Notification, nid)
-    if n and n.user_id == u.id: n.is_read = True
+    if n and n.user_id == u.id:
+        n.is_read = True
+        await db.commit()
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
@@ -550,6 +562,7 @@ async def update_profile(data: dict, u: User = Depends(current_user), db: AsyncS
     for k, v in data.items():
         if k in allowed and v is not None:
             setattr(u, k, v)
+    await db.commit()
     return {"id": u.id, "email": u.email, "full_name": u.full_name,
             "phone": u.phone, "role": u.role, "language": u.language}
 
@@ -558,6 +571,7 @@ async def change_password(data: dict, u: User = Depends(current_user), db: Async
     if not verify_password(data.get("current_password", ""), u.password_hash):
         raise HTTPException(400, "Mot de passe actuel incorrect")
     u.password_hash = hash_password(data["new_password"])
+    await db.commit()
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
@@ -586,6 +600,7 @@ async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404)
     b.status = "rejected"
+    await db.commit()
     return {"message": f"{b.name} rejetée"}
 
 @app.delete("/api/admin/users/{uid}")
@@ -593,6 +608,7 @@ async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(ad
     user = await db.get(User, uid)
     if not user: raise HTTPException(404)
     await db.delete(user)
+    await db.commit()
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
@@ -616,6 +632,7 @@ async def self_select_branch(data: dict, u: User = Depends(current_user), db: As
         await db.flush()
     bu = BranchUser(user_id=u.id, branch_id=branch_id, role="secretary")
     db.add(bu)
+    await db.commit()
     return {"ok": True, "branch": _branch_dict(b)}
 
 # ══════════════════════════════════════════════════════
@@ -674,4 +691,5 @@ async def admin_reset_password(uid: str, db: AsyncSession = Depends(get_db), _=D
     if not u: raise HTTPException(404)
     temp = gen_temp_password()
     u.password_hash = hash_password(temp)
+    await db.commit()
     return {"ok": True, "full_name": u.full_name, "temp_password": temp}
