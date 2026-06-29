@@ -10,7 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date as _date
 from typing import Optional, List
-import uuid, os, random, string
+import uuid, os, random, string, secrets, smtplib, ssl
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 def parse_date(val):
     """Convertit une chaîne ISO ou None en objet date Python."""
@@ -50,6 +52,64 @@ def verify_password(p, h):
         return _bcrypt.checkpw(p.encode("utf-8"), h.encode("utf-8"))
     except Exception:
         return False
+
+# ── Email d'invitation ────────────────────────────────────────
+GMAIL_USER     = os.environ.get("GMAIL_USER", "")
+GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+
+def send_invitation_email(to_email: str, full_name: str, setup_link: str) -> bool:
+    """Envoie l'email d'invitation avec le lien de définition de mot de passe."""
+    if not GMAIL_USER or not GMAIL_PASSWORD:
+        print(f"⚠️  Email non configuré. Lien de setup : {setup_link}")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Votre accès CODISS — Définissez votre mot de passe"
+        msg["From"]    = f"CODISS Cartographie <{GMAIL_USER}>"
+        msg["To"]      = to_email
+
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;background:#0f1623;color:#e2e8f0;border-radius:12px;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#00e676,#1de9b6);padding:30px;text-align:center;">
+            <h1 style="color:#0a0e1a;margin:0;font-size:24px;">🗺️ CODISS</h1>
+            <p style="color:#0a0e1a;margin:8px 0 0;font-size:14px;">Cartographie Nationale</p>
+          </div>
+          <div style="padding:32px;">
+            <h2 style="color:#00e676;font-size:20px;">Bonjour {full_name},</h2>
+            <p style="line-height:1.6;">Un compte a été créé pour vous sur la plateforme <strong>CODISS Cartographie</strong>.</p>
+            <p style="line-height:1.6;">Cliquez sur le bouton ci-dessous pour définir votre mot de passe et accéder à votre espace :</p>
+            <div style="text-align:center;margin:32px 0;">
+              <a href="{setup_link}"
+                 style="background:linear-gradient(135deg,#00e676,#1de9b6);color:#0a0e1a;padding:14px 32px;
+                        border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;display:inline-block;">
+                🔑 Définir mon mot de passe
+              </a>
+            </div>
+            <p style="color:#94a3b8;font-size:13px;line-height:1.6;">
+              Ce lien est valable <strong style="color:#e2e8f0;">48 heures</strong>.<br>
+              Si vous n'avez pas demandé ce compte, ignorez cet email.
+            </p>
+            <hr style="border:none;border-top:1px solid #1e3a5f;margin:24px 0;">
+            <p style="color:#64748b;font-size:12px;text-align:center;">
+              CODISS — Système de Cartographie Nationale de Côte d'Ivoire
+            </p>
+          </div>
+        </div>"""
+
+        text = f"""Bonjour {full_name},\n\nUn compte a été créé pour vous sur CODISS Cartographie.\n\nDéfinissez votre mot de passe via ce lien (valable 48h) :\n{setup_link}\n\nCODISS Cartographie Nationale"""
+
+        msg.attach(MIMEText(text, "plain"))
+        msg.attach(MIMEText(html, "html"))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"❌ Erreur envoi email : {e}")
+        return False
+
 def make_token(data):
     d = data.copy()
     d["exp"] = datetime.utcnow() + timedelta(minutes=EXPIRE_MINS)
@@ -518,16 +578,76 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
             for u in r.scalars().all()]
 
 @app.post("/api/admin/users", status_code=201)
-async def create_user(data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     ex = await db.execute(select(User).where(User.email == data["email"]))
     if ex.scalar_one_or_none(): raise HTTPException(400, "Email déjà utilisé")
-    u = User(email=data["email"], password_hash=hash_password(data["password"]),
-             full_name=data["full_name"], phone=data.get("phone"),
-             role=data.get("role","branch"), language=data.get("language","fr"))
+    # Générer un token de setup sécurisé (valable 48h)
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=48)
+    # Mot de passe placeholder (l'utilisateur devra le définir via le lien)
+    placeholder_pw = secrets.token_urlsafe(24)
+    u = User(
+        email=data["email"],
+        password_hash=hash_password(placeholder_pw),
+        full_name=data["full_name"],
+        phone=data.get("phone"),
+        role=data.get("role", "branch"),
+        language=data.get("language", "fr"),
+        setup_token=token,
+        setup_token_expires=expires,
+        must_set_password=True,
+    )
     db.add(u)
     await db.commit()
     await db.refresh(u)
-    return {"id": u.id, "email": u.email, "full_name": u.full_name, "role": u.role, "is_active": u.is_active, "created_at": u.created_at.isoformat()}
+    # Construire le lien et envoyer l'email
+    base_url = str(request.base_url).rstrip("/")
+    setup_link = f"{base_url}/?setup_token={token}"
+    email_sent = send_invitation_email(u.email, u.full_name, setup_link)
+    return {
+        "id": u.id, "email": u.email, "full_name": u.full_name,
+        "role": u.role, "is_active": u.is_active,
+        "created_at": u.created_at.isoformat(),
+        "email_sent": email_sent,
+        "setup_link": setup_link,  # affiché dans l'UI si email non configuré
+    }
+
+@app.get("/api/auth/check-setup-token")
+async def check_setup_token(token: str, db: AsyncSession = Depends(get_db)):
+    """Vérifie qu'un token de setup est valide et retourne l'email masqué."""
+    r = await db.execute(select(User).where(User.setup_token == token))
+    u = r.scalar_one_or_none()
+    if not u:
+        raise HTTPException(404, "Lien invalide ou déjà utilisé")
+    if u.setup_token_expires and datetime.utcnow() > u.setup_token_expires:
+        raise HTTPException(410, "Ce lien a expiré. Contactez l'administration.")
+    parts = u.email.split("@")
+    local = parts[0]
+    masked = local[:2] + "***" + local[-1:] + "@" + parts[1]
+    return {"valid": True, "full_name": u.full_name, "email_masked": masked}
+
+@app.post("/api/auth/setup-password")
+async def setup_password(data: dict, db: AsyncSession = Depends(get_db)):
+    """Définit le mot de passe d'un nouvel utilisateur via son token d'invitation."""
+    token    = (data.get("token") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not token or not password:
+        raise HTTPException(400, "Token et mot de passe requis")
+    if len(password) < 6:
+        raise HTTPException(400, "Le mot de passe doit contenir au moins 6 caractères")
+    r = await db.execute(select(User).where(User.setup_token == token))
+    u = r.scalar_one_or_none()
+    if not u:
+        raise HTTPException(404, "Lien invalide ou déjà utilisé")
+    if u.setup_token_expires and datetime.utcnow() > u.setup_token_expires:
+        raise HTTPException(410, "Ce lien a expiré. Contactez l'administration.")
+    u.password_hash       = hash_password(password)
+    u.setup_token         = None
+    u.setup_token_expires = None
+    u.must_set_password   = False
+    u.is_active           = True
+    await db.commit()
+    return {"ok": True, "message": "Mot de passe défini avec succès. Vous pouvez maintenant vous connecter."}
 
 @app.patch("/api/admin/users/{uid}/toggle-active")
 async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
@@ -570,126 +690,3 @@ async def update_profile(data: dict, u: User = Depends(current_user), db: AsyncS
 async def change_password(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     if not verify_password(data.get("current_password", ""), u.password_hash):
         raise HTTPException(400, "Mot de passe actuel incorrect")
-    u.password_hash = hash_password(data["new_password"])
-    await db.commit()
-    return {"ok": True}
-
-# ══════════════════════════════════════════════════════
-# RAPPORT DETAIL
-# ══════════════════════════════════════════════════════
-@app.get("/api/reports/{rid}")
-async def get_report(rid: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
-    rp = await db.get(PresenceReport, rid)
-    if not rp: raise HTTPException(404)
-    # Si c'est un admin qui consulte, marquer comme vu
-    if u.role in ("admin", "superadmin") and not rp.viewed_by_admin:
-        rp.viewed_by_admin = True
-        rp.viewed_at = datetime.utcnow()
-    answers = (await db.execute(
-        select(ReportFormAnswer).where(ReportFormAnswer.report_id == rid)
-    )).scalars().all()
-    d = _report_dict(rp)
-    d["form_answers"] = [{"question": a.question, "answer": a.answer} for a in answers]
-    return d
-
-# ══════════════════════════════════════════════════════
-# BRANCHES — REJET
-# ══════════════════════════════════════════════════════
-@app.post("/api/branches/{bid}/reject")
-async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
-    b = await db.get(Branch, bid)
-    if not b: raise HTTPException(404)
-    b.status = "rejected"
-    await db.commit()
-    return {"message": f"{b.name} rejetée"}
-
-@app.delete("/api/admin/users/{uid}")
-async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
-    user = await db.get(User, uid)
-    if not user: raise HTTPException(404)
-    await db.delete(user)
-    await db.commit()
-    return {"ok": True}
-
-# ══════════════════════════════════════════════════════
-# AUTO-SÉLECTION DE BRANCHE (par le secrétaire lui-même)
-# ══════════════════════════════════════════════════════
-@app.post("/api/auth/me/select-branch")
-async def self_select_branch(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    if u.role != "branch":
-        raise HTTPException(403, "Réservé aux secrétaires de branche")
-    branch_id = data.get("branch_id")
-    if not branch_id:
-        raise HTTPException(400, "branch_id requis")
-    b = await db.get(Branch, branch_id)
-    if not b:
-        raise HTTPException(404, "Branche introuvable")
-    # Supprimer l'ancienne liaison si elle existe
-    existing = await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))
-    old = existing.scalar_one_or_none()
-    if old:
-        await db.delete(old)
-        await db.flush()
-    bu = BranchUser(user_id=u.id, branch_id=branch_id, role="secretary")
-    db.add(bu)
-    await db.commit()
-    return {"ok": True, "branch": _branch_dict(b)}
-
-# ══════════════════════════════════════════════════════
-# RÉCUPÉRATION D'ACCÈS
-# ══════════════════════════════════════════════════════
-import random, string
-
-def gen_temp_password(length=10):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choices(chars, k=length))
-
-@app.post("/api/auth/forgot-password")
-async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
-    """Génère un mot de passe temporaire — affiche sur écran (pas d'email en local)."""
-    email = (data.get("email") or "").strip().lower()
-    if not email:
-        raise HTTPException(400, "Email requis")
-    r = await db.execute(select(User).where(User.email == email))
-    u = r.scalar_one_or_none()
-    if not u:
-        # Réponse neutre pour ne pas révéler si l'email existe
-        raise HTTPException(404, "Aucun compte trouvé pour cet email.")
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    return {
-        "ok": True,
-        "full_name": u.full_name,
-        "temp_password": temp,
-        "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."
-    }
-
-@app.post("/api/auth/find-by-name")
-async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
-    """Retrouve un email à partir d'un nom complet (partiel)."""
-    name = (data.get("name") or "").strip()
-    if len(name) < 3:
-        raise HTTPException(400, "Entrez au moins 3 caractères")
-    r = await db.execute(
-        select(User).where(User.full_name.ilike(f"%{name}%")).limit(5)
-    )
-    users = r.scalars().all()
-    if not users:
-        raise HTTPException(404, "Aucun compte trouvé pour ce nom.")
-    # Masque partiellement l'email : ab***@codiss.ci
-    def mask_email(email):
-        parts = email.split("@")
-        local = parts[0]
-        shown = local[:2] + "*" * max(2, len(local)-4) + local[-2:] if len(local) > 4 else local[:1] + "***"
-        return shown + "@" + parts[1]
-    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
-
-@app.post("/api/admin/users/{uid}/reset-password")
-async def admin_reset_password(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
-    """Réinitialise le mot de passe d'un utilisateur (admin uniquement)."""
-    u = await db.get(User, uid)
-    if not u: raise HTTPException(404)
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    await db.commit()
-    return {"ok": True, "full_name": u.full_name, "temp_password": temp}

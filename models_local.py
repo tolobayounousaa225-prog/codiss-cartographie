@@ -51,11 +51,15 @@ class User(Base):
     phone         = Column(String(20))
     role          = Column(String(20), default="branch")
     language      = Column(String(5), default="fr")
-    is_active     = Column(Boolean, default=True)
-    last_login    = Column(DateTime)
-    created_at    = Column(DateTime, default=datetime.utcnow)
-    updated_at    = Column(DateTime, default=datetime.utcnow)
-    branch_links  = relationship("BranchUser", back_populates="user")
+    is_active            = Column(Boolean, default=True)
+    last_login           = Column(DateTime)
+    created_at           = Column(DateTime, default=datetime.utcnow)
+    updated_at           = Column(DateTime, default=datetime.utcnow)
+    # Invitation par email — lien de définition de mot de passe
+    setup_token          = Column(String(64), nullable=True)
+    setup_token_expires  = Column(DateTime, nullable=True)
+    must_set_password    = Column(Boolean, default=False)
+    branch_links         = relationship("BranchUser", back_populates="user")
 
 class Branch(Base):
     __tablename__ = "branches"
@@ -135,9 +139,3 @@ class ReportFormAnswer(Base):
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
     id         = Column(Integer, primary_key=True, autoincrement=True)
-    user_id    = Column(String(36), ForeignKey("users.id"))
-    branch_id  = Column(String(36), ForeignKey("branches.id"))
-    action     = Column(String(100), nullable=False)
-    details    = Column(JSON)
-    ip_address = Column(String(45))
-    created_at = Column(DateTime, def

@@ -697,6 +697,40 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   </div>
 </div>
 
+
+<!-- ═══ PAGE: Définir votre mot de passe (invitation) ═══ -->
+<div id="setup-password-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:500;align-items:center;justify-content:center;">
+  <div class="login-card" style="max-width:420px;">
+    <div class="login-logo">
+      <svg width="56" height="56" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="38" fill="#006B3F"/>
+        <circle cx="40" cy="40" r="28" fill="#00A859"/>
+        <text x="40" y="34" text-anchor="middle" fill="#FFF" font-size="10" font-family="Arial" font-weight="bold">CODISS</text>
+        <text x="40" y="50" text-anchor="middle" fill="#FCBA04" font-size="15">🗺️</text>
+      </svg>
+      <h1>Bienvenue sur CODISS</h1>
+    </div>
+    <div id="setup-welcome-msg" style="background:rgba(0,230,118,.1);border:1px solid var(--green);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:.9rem;color:var(--text1);text-align:center;">Chargement…</div>
+    <div id="setup-alert" class="alert" style="display:none;margin-bottom:14px;"></div>
+    <div id="setup-form">
+      <div class="form-group">
+        <label>Nouveau mot de passe <span style="color:var(--red)">*</span></label>
+        <input type="password" id="setup-pw1" placeholder="Minimum 6 caractères" autocomplete="new-password"/>
+      </div>
+      <div class="form-group">
+        <label>Confirmer le mot de passe <span style="color:var(--red)">*</span></label>
+        <input type="password" id="setup-pw2" placeholder="Répétez votre mot de passe" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSetupPassword()"/>
+      </div>
+      <button class="btn btn-primary" onclick="doSetupPassword()" style="width:100%;">🔑 Définir mon mot de passe et me connecter</button>
+    </div>
+    <div id="setup-success" style="display:none;text-align:center;padding:20px 0;">
+      <div style="font-size:3rem;margin-bottom:12px;">✅</div>
+      <p style="color:var(--green);font-size:1.1rem;font-weight:600;margin-bottom:8px;">Mot de passe défini !</p>
+      <p style="color:var(--text2);font-size:.9rem;">Redirection vers la connexion…</p>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL: Récupération d'accès ═══ -->
 <div class="modal-overlay modal-hidden" id="modal-recovery" style="z-index:300">
   <div class="modal" style="max-width:480px">
@@ -993,30 +1027,21 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <div class="stat-card blue"><div class="stat-icon blue">📝</div><div><div class="stat-val" id="st-reports">—</div><div class="stat-lbl" data-fr="Rapports reçus" data-ar="التقارير المستلمة">Rapports reçus</div></div></div>
         </div>
 
+
         <!-- ═══ PANEL UTILISATEURS EN LIGNE (superadmin uniquement) ═══ -->
         <div id="online-users-panel" class="panel section-hidden" style="margin-bottom:18px;">
           <div class="panel-header">
             <div>
               <div class="panel-title" style="display:flex;align-items:center;gap:10px;">
                 Utilisateurs connectés
-                <span id="online-count-badge" style="
-                  background:rgba(0,230,118,.15);color:var(--green);
-                  border:1px solid rgba(0,230,118,.3);border-radius:20px;
-                  padding:2px 10px;font-size:.72rem;font-weight:700;
-                ">0</span>
-                <span id="online-live-dot" style="
-                  width:8px;height:8px;border-radius:50%;
-                  background:var(--green);display:inline-block;
-                  animation:pulse 1.5s infinite;
-                "></span>
+                <span id="online-count-badge" style="background:rgba(0,230,118,.15);color:var(--green);border:1px solid rgba(0,230,118,.3);border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:700;">0</span>
+                <span id="online-live-dot" style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite;"></span>
               </div>
               <div class="panel-subtitle">Mis à jour automatiquement toutes les 15 secondes</div>
             </div>
             <button class="action-btn gray" onclick="loadOnlineUsers()" style="font-size:.78rem;">⟳ Actualiser</button>
           </div>
-          <div id="online-users-body" style="min-height:60px;">
-            <div style="text-align:center;padding:20px;color:var(--text3);font-size:.85rem;">Chargement…</div>
-          </div>
+          <div id="online-users-body" style="min-height:60px;"><div style="text-align:center;padding:20px;color:var(--text3);font-size:.85rem;">Chargement…</div></div>
         </div>
 
         <!-- Actions rapides Admin -->
@@ -1379,7 +1404,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <option value="superadmin" data-fr="Super Administrateur" data-ar="المدير العام">Super Administrateur</option>
         </select>
       </div>
-      <div class="form-row"><label data-fr="Mot de passe" data-ar="كلمة المرور">Mot de passe <span class="form-required">*</span></label><input type="password" id="u-password" placeholder="Min. 8 caractères"/></div>
+      <div class="form-row" style="background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.2);border-radius:8px;padding:10px 12px;">
+        <p style="margin:0;font-size:.82rem;color:var(--green);">📧 Un email d'invitation sera automatiquement envoyé à l'utilisateur avec un lien pour définir son propre mot de passe.</p>
+      </div>
       <div class="form-row full" id="u-branch-row" style="display:none">
         <label data-fr="Lier à une branche" data-ar="ربط بفرع">Lier à une branche <span class="form-required">*</span></label>
         <select id="u-branch">
@@ -1553,10 +1580,8 @@ async function doLogin() {
 }
 
 function doLogout() {
-  // Arrêter le heartbeat
   if (window._heartbeatInterval) { clearInterval(window._heartbeatInterval); window._heartbeatInterval = null; }
   if (window._onlineUsersInterval) { clearInterval(window._onlineUsersInterval); window._onlineUsersInterval = null; }
-  // Notifier le backend (fire & forget)
   if (STATE.token) {
     fetch('/api/auth/logout', { method:'DELETE', headers:{'Authorization':'Bearer '+STATE.token} }).catch(()=>{});
   }
@@ -1612,7 +1637,7 @@ function initApp() {
       body: JSON.stringify({ page: STATE.currentPage || 'dashboard' })
     }).catch(()=>{});
   }
-  sendHeartbeat(); // immédiat au login
+  sendHeartbeat();
   if (window._heartbeatInterval) clearInterval(window._heartbeatInterval);
   window._heartbeatInterval = setInterval(sendHeartbeat, 30000);
 
@@ -1640,7 +1665,7 @@ const PAGE_TITLES = {
 };
 
 function showSection(name) {
-  STATE.currentPage = name; // pour le heartbeat
+  STATE.currentPage = name;
   ALL_SECTIONS.forEach(s => {
     const el = document.getElementById('section-' + s);
     if (el) el.classList.toggle('section-hidden', s !== name);
@@ -1720,92 +1745,6 @@ function renderCoverageList(coverage) {
         <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${r.district||''}</div>
       </div>`;
     }).join('') + '</div>';
-}
-
-// ═══════════════════════════════════════════════════════
-// UTILISATEURS EN LIGNE (superadmin)
-// ═══════════════════════════════════════════════════════
-const PAGE_LABELS = {
-  dashboard:'Tableau de bord', map:'Carte nationale', branches:'Branches',
-  reports:'Rapports', users:'Utilisateurs', profile:'Mon profil',
-  'new-report':'Nouveau rapport', 'my-reports':'Mes rapports', 'my-branch':'Ma branche'
-};
-const ROLE_COLORS = {
-  superadmin:'rgba(224,64,251,.15)',admin:'rgba(255,145,0,.15)',
-  branch:'rgba(68,138,255,.15)',viewer:'rgba(100,116,139,.15)'
-};
-const ROLE_TEXT = {
-  superadmin:'var(--purple)',admin:'var(--orange)',
-  branch:'var(--blue)',viewer:'var(--text3)'
-};
-const ROLE_LABELS = {
-  superadmin:'Super Admin',admin:'Admin',branch:'Secrétaire',viewer:'Observateur'
-};
-
-function formatDuration(secs) {
-  if (secs < 60) return secs + 's';
-  const m = Math.floor(secs / 60), s = secs % 60;
-  if (m < 60) return `${m}m ${s}s`;
-  const h = Math.floor(m / 60), rm = m % 60;
-  return `${h}h ${rm}m`;
-}
-
-async function loadOnlineUsers() {
-  const body = document.getElementById('online-users-body');
-  const badge = document.getElementById('online-count-badge');
-  try {
-    const users = await api('GET', '/admin/online-users');
-    badge.textContent = users.length;
-    if (!users.length) {
-      body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:.85rem;">
-        Aucun autre utilisateur connecté actuellement.</div>`;
-      return;
-    }
-    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;padding:4px 0;">
-      ${users.map(u => {
-        const initials = u.full_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-        const pageLbl = PAGE_LABELS[u.current_page] || u.current_page;
-        const connectedAt = new Date(u.connected_at + 'Z').toLocaleTimeString('fr-CI',{hour:'2-digit',minute:'2-digit'});
-        return `<div style="
-          background:var(--bg4);border-radius:12px;padding:14px 16px;
-          border:1px solid rgba(255,255,255,.07);
-          display:flex;align-items:center;gap:12px;
-          transition:.2s;
-        ">
-          <div style="position:relative;flex-shrink:0;">
-            <div style="
-              width:44px;height:44px;border-radius:12px;
-              background:${ROLE_COLORS[u.role]||'rgba(100,116,139,.15)'};
-              color:${ROLE_TEXT[u.role]||'var(--text2)'};
-              display:flex;align-items:center;justify-content:center;
-              font-size:1rem;font-weight:800;
-            ">${initials}</div>
-            <span style="
-              position:absolute;bottom:-2px;right:-2px;
-              width:11px;height:11px;border-radius:50%;
-              background:var(--green);border:2px solid var(--bg4);
-            "></span>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:.88rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.full_name}</div>
-            <div style="font-size:.73rem;color:${ROLE_TEXT[u.role]||'var(--text3)'};margin-top:2px;font-weight:600;">${ROLE_LABELS[u.role]||u.role}</div>
-            <div style="display:flex;gap:10px;margin-top:5px;flex-wrap:wrap;">
-              <span style="font-size:.72rem;color:var(--text3);">📍 ${pageLbl}</span>
-              <span style="font-size:.72rem;color:var(--text3);">🕐 Connecté à ${connectedAt}</span>
-            </div>
-          </div>
-          <div style="text-align:right;flex-shrink:0;">
-            <div style="
-              font-size:1rem;font-weight:900;color:var(--green);line-height:1;
-            ">${formatDuration(u.duration_secs)}</div>
-            <div style="font-size:.68rem;color:var(--text3);margin-top:2px;">en ligne</div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  } catch(e) {
-    body.innerHTML = `<div class="alert alert-error">Erreur: ${e.message}</div>`;
-  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2493,7 +2432,7 @@ async function toggleUser(id) {
 
 async function openNewUserModal() {
   // Réinitialiser les champs
-  ['u-name','u-email','u-phone','u-password'].forEach(id => document.getElementById(id).value = '');
+  ['u-name','u-email','u-phone'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('u-role').value = 'branch';
   document.getElementById('user-modal-alert').style.display = 'none';
   // Charger les branches dans le sélecteur
@@ -2544,25 +2483,28 @@ async function saveUser() {
     email:     document.getElementById('u-email').value.trim(),
     phone:     document.getElementById('u-phone').value.trim(),
     role,
-    password:  document.getElementById('u-password').value,
     language:  STATE.lang,
   };
-  if (!payload.full_name || !payload.email || !payload.password) {
-    showAlert(alertEl,'error', STATE.lang==='fr'?'Nom, email et mot de passe sont obligatoires.':'Name, email and password are required.');
+  if (!payload.full_name || !payload.email) {
+    showAlert(alertEl,'error', STATE.lang==='fr'?'Nom et email sont obligatoires.':'Name and email are required.');
     return;
   }
   try {
     const newUser = await api('POST', '/admin/users', payload);
-    // Lier à la branche si rôle branch
     if (role === 'branch' && branchId && newUser && newUser.id) {
       await api('POST', `/branches/${branchId}/assign-user?user_id=${newUser.id}&role=secretary`);
     }
-    showAlert(alertEl,'success',
-      STATE.lang==='fr'
-        ? `✅ Utilisateur créé${role==='branch'?' et lié à la branche':''}  !`
-        : `✅ User created${role==='branch'?' and linked to branch':''} !`
-    );
-    setTimeout(()=>{ closeModal('modal-user'); loadUsers(); },1400);
+    if (newUser.email_sent) {
+      showAlert(alertEl,'success', `✅ Utilisateur créé ! Email d'invitation envoyé à ${payload.email}.`);
+    } else {
+      const link = newUser.setup_link || '';
+      showAlert(alertEl,'success',
+        `✅ Utilisateur créé ! (Email non configuré sur le serveur)<br>
+         <strong>Partagez ce lien</strong> avec l'utilisateur :<br>
+         <a href="${link}" target="_blank" style="color:var(--green);word-break:break-all;font-size:.8rem;">${link}</a>`
+      );
+    }
+    setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, newUser.email_sent ? 1800 : 9000);
   } catch(e) { showAlert(alertEl,'error', e.message); }
 }
 
@@ -3027,4 +2969,236 @@ let _currentReportData = null;
 
 async function showReportDetail(id) {
   document.getElementById('modal-report-title').textContent = STATE.lang==='fr'?'Détail du rapport':'Report Detail';
-  document.getE
+  document.getElementById('modal-report-body').innerHTML = `<div style="color:var(--text3)">${t('loading')}</div>`;
+  document.getElementById('modal-report').classList.remove('modal-hidden');
+  try {
+    const r = await api('GET', `/reports/${id}`);
+    _currentReportData = r;
+    let answersHtml = '';
+    if (r.form_answers && r.form_answers.length) {
+      answersHtml = '<hr style="border:none;border-top:1px solid var(--gray2);margin:14px 0"/><div style="font-weight:700;margin-bottom:12px;color:var(--green)">Questionnaire CODISS</div>' +
+        r.form_answers.map((a,i) => `
+          <div style="margin-bottom:10px;background:var(--bg4);padding:10px 14px;border-radius:8px">
+            <div style="font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:4px">${i+1}. ${a.question}</div>
+            <div style="font-size:.88rem">${a.answer||'<em style="color:var(--text3)">Non renseigné</em>'}</div>
+          </div>`).join('');
+    }
+
+    // Fil rejet / réponse
+    let threadHtml = '';
+    if (r.review_notes || r.branch_response) {
+      threadHtml = `<hr style="border:none;border-top:1px solid var(--gray2);margin:14px 0"/>
+        <div style="font-weight:700;margin-bottom:12px;color:var(--red)">💬 ${STATE.lang==='fr'?'Échanges sur ce rapport':'Report exchanges'}</div>`;
+      if (r.review_notes) {
+        threadHtml += `
+          <div style="display:flex;gap:10px;margin-bottom:12px">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">🛡</div>
+            <div style="flex:1">
+              <div style="font-size:.7rem;font-weight:800;color:var(--red);margin-bottom:4px">${STATE.lang==='fr'?'ADMINISTRATION — Motif du rejet':'ADMINISTRATION — Rejection reason'}</div>
+              <div style="background:rgba(255,23,68,.12);border-radius:0 10px 10px 10px;padding:10px 14px;font-size:.88rem">${r.review_notes}</div>
+              ${r.reviewed_at?`<div style="font-size:.7rem;color:var(--text3);margin-top:3px">${new Date(r.reviewed_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US')}</div>`:''}
+            </div>
+          </div>`;
+      }
+      if (r.branch_response) {
+        threadHtml += `
+          <div style="display:flex;gap:10px;flex-direction:row-reverse;margin-bottom:12px">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">👤</div>
+            <div style="flex:1;text-align:right">
+              <div style="font-size:.7rem;font-weight:800;color:var(--blue);margin-bottom:4px">${STATE.lang==='fr'?'SECRÉTAIRE — Réponse':'SECRETARY — Reply'}</div>
+              <div style="background:rgba(68,138,255,.12);border-radius:10px 0 10px 10px;padding:10px 14px;font-size:.88rem;text-align:left">${r.branch_response}</div>
+            </div>
+          </div>`;
+      }
+      if (r.status === 'rejected' && !r.branch_response && STATE.user && STATE.user.role === 'branch') {
+        threadHtml += `<div style="text-align:center;margin-top:6px">
+          <button class="action-btn blue" onclick="openReplyModal('${r.id}','${(r.title||'').replace(/'/g,"\\'")}','${(r.review_notes||'').replace(/'/g,"\\'").replace(/\n/g,' ')}');closeModal('modal-report')">
+            💬 ${STATE.lang==='fr'?'Répondre à ce rejet':'Reply to this rejection'}
+          </button></div>`;
+      }
+    }
+
+    document.getElementById('modal-report-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div><span style="font-size:.78rem;color:var(--text2)">Type</span><br><strong>${r.report_type}</strong></div>
+        <div><span style="font-size:.78rem;color:var(--text2)">Statut</span><br><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></div>
+        <div><span style="font-size:.78rem;color:var(--text2)">Date</span><br><strong>${r.created_at?new Date(r.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):'—'}</strong></div>
+        <div><span style="font-size:.78rem;color:var(--text2)">GPS</span><br><strong>${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</strong></div>
+      </div>
+      ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${r.description}</div>`:''}
+      ${threadHtml}
+      ${answersHtml}`;
+  } catch(e) { document.getElementById('modal-report-body').innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+}
+
+function exportReportPDF() {
+  const r = _currentReportData;
+  if (!r) return;
+  const answersHtml = (r.form_answers && r.form_answers.length)
+    ? `<div class="pdf-section">
+        <div class="pdf-section-title">Questionnaire CODISS</div>
+        ${r.form_answers.map((a,i)=>`
+          <div class="q-block">
+            <div class="q">${i+1}. ${a.question}</div>
+            <div class="a">${a.answer||'<em>Non renseigné</em>'}</div>
+          </div>`).join('')}
+      </div>`
+    : '';
+  const html = pdfHeader(`Rapport — ${r.title}`, `Type: ${r.report_type} | Statut: ${t('status_'+r.status)||r.status}`) + `
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val" style="font-size:1rem">${r.report_type}</div><div class="stat-lbl">Type de rapport</div></div>
+      <div class="stat-box ${r.status==='approved'?'':'orange'}"><div class="stat-val" style="font-size:1rem">${t('status_'+r.status)||r.status}</div><div class="stat-lbl">Statut</div></div>
+      <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</div><div class="stat-lbl">Date soumission</div></div>
+      <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</div><div class="stat-lbl">Coordonnées GPS</div></div>
+    </div>
+    ${r.description?`<div class="pdf-section"><div class="pdf-section-title">Description</div><p style="font-size:.88rem;line-height:1.6">${r.description}</p></div>`:''}
+    ${answersHtml}
+    ${pdfFooter()}`;
+  openPDF(html);
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILISATEURS EN LIGNE (superadmin)
+// ═══════════════════════════════════════════════════════
+const PAGE_LABELS = {
+  dashboard:'Tableau de bord', map:'Carte nationale', branches:'Branches',
+  reports:'Rapports', users:'Utilisateurs', profile:'Mon profil',
+  'new-report':'Nouveau rapport', 'my-reports':'Mes rapports', 'my-branch':'Ma branche'
+};
+const ROLE_COLORS = {
+  superadmin:'rgba(224,64,251,.15)',admin:'rgba(255,145,0,.15)',
+  branch:'rgba(68,138,255,.15)',viewer:'rgba(100,116,139,.15)'
+};
+const ROLE_TEXT = {
+  superadmin:'var(--purple)',admin:'var(--orange)',
+  branch:'var(--blue)',viewer:'var(--text3)'
+};
+const ROLE_LABELS = { superadmin:'Super Admin', admin:'Admin', branch:'Secrétaire', viewer:'Observateur' };
+
+function formatDuration(secs) {
+  if (secs < 60) return secs + 's';
+  const m = Math.floor(secs/60), s = secs%60;
+  if (m < 60) return `${m}m ${s}s`;
+  return `${Math.floor(m/60)}h ${m%60}m`;
+}
+
+async function loadOnlineUsers() {
+  const body = document.getElementById('online-users-body');
+  if (!body) return;
+  try {
+    const users = await api('GET', '/admin/online-users');
+    document.getElementById('online-count-badge').textContent = users.length;
+    if (!users.length) {
+      body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:.85rem;">Aucun autre utilisateur connecté</div>';
+      return;
+    }
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:4px 0;">' +
+      users.map(u => {
+        const initials = (u.full_name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+        const pageLabel = PAGE_LABELS[u.current_page] || u.current_page || 'Dashboard';
+        const dur = formatDuration(u.duration_secs || 0);
+        return `<div style="background:var(--bg3);border:1px solid var(--gray2);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:${ROLE_COLORS[u.role]||'rgba(100,116,139,.15)'};
+              color:${ROLE_TEXT[u.role]||'var(--text2)'};display:flex;align-items:center;justify-content:center;
+              font-weight:800;font-size:.9rem;flex-shrink:0;">${initials}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.full_name}</div>
+              <div style="font-size:.72rem;color:${ROLE_TEXT[u.role]||'var(--text2)'};">${ROLE_LABELS[u.role]||u.role}</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--text3);">
+            <span>📍 ${pageLabel}</span>
+            <span>⏱ ${dur}</span>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-error">Erreur: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SETUP PASSWORD (invitation par email)
+// ═══════════════════════════════════════════════════════
+let _setupToken = null;
+
+async function checkSetupToken(token) {
+  try {
+    const res = await fetch(`/api/auth/check-setup-token?token=${encodeURIComponent(token)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({detail:'Lien invalide'}));
+      throw new Error(err.detail || 'Lien invalide');
+    }
+    return await res.json();
+  } catch(e) { throw e; }
+}
+
+async function doSetupPassword() {
+  const alertEl = document.getElementById('setup-alert');
+  const pw1 = document.getElementById('setup-pw1').value;
+  const pw2 = document.getElementById('setup-pw2').value;
+  alertEl.style.display = 'none';
+  if (!pw1) { showAlert(alertEl,'error','Veuillez entrer un mot de passe.'); return; }
+  if (pw1.length < 6) { showAlert(alertEl,'error','Le mot de passe doit contenir au moins 6 caractères.'); return; }
+  if (pw1 !== pw2) { showAlert(alertEl,'error','Les mots de passe ne correspondent pas.'); return; }
+  try {
+    const res = await fetch('/api/auth/setup-password', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: _setupToken, password: pw1 })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({detail:'Erreur'}));
+      throw new Error(err.detail || 'Erreur');
+    }
+    document.getElementById('setup-form').style.display = 'none';
+    document.getElementById('setup-success').style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('setup-password-screen').style.display = 'none';
+      // Nettoyer l'URL
+      window.history.replaceState({}, document.title, '/');
+    }, 2500);
+  } catch(e) { showAlert(alertEl,'error', e.message); }
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTO-LOGIN
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  // Détecter un token d'invitation dans l'URL (?setup_token=...)
+  const urlParams = new URLSearchParams(window.location.search);
+  const setupToken = urlParams.get('setup_token');
+  if (setupToken) {
+    _setupToken = setupToken;
+    const screen = document.getElementById('setup-password-screen');
+    screen.style.display = 'flex';
+    try {
+      const info = await checkSetupToken(setupToken);
+      document.getElementById('setup-welcome-msg').innerHTML =
+        `👋 Bonjour <strong>${info.full_name}</strong> !<br>
+         <span style="font-size:.82rem;color:var(--text2);">Compte : ${info.email_masked}</span><br>
+         Définissez votre mot de passe pour accéder à CODISS.`;
+    } catch(e) {
+      document.getElementById('setup-welcome-msg').innerHTML =
+        `<span style="color:var(--red);">❌ ${e.message}</span>`;
+      document.getElementById('setup-form').style.display = 'none';
+    }
+    return; // Ne pas auto-login si on est en mode setup
+  }
+
+  // Auto-login classique
+  const token = localStorage.getItem('codiss_token');
+  const user  = localStorage.getItem('codiss_user');
+  if (token && user) {
+    try {
+      STATE.token = token;
+      STATE.user  = JSON.parse(user);
+      STATE.lang  = STATE.user.lang || 'fr';
+      initApp();
+    } catch(e) { doLogout(); }
+  }
+});
+</script>
+</body>
+</html>
