@@ -171,7 +171,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 @app.middleware("http")
 async def no_cache_middleware(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/api/") or request.url.path == "/health":
+    # Bloquer le cache CDN sur toutes les routes dynamiques ET statiques critiques
+    _no_cache_paths = {"/", "/health", "/openapi.json"}
+    if request.url.path.startswith("/api/") or request.url.path in _no_cache_paths:
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         response.headers["Pragma"] = "no-cache"
     return response
@@ -182,7 +184,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 @app.get("/", include_in_schema=False)
 @app.head("/", include_in_schema=False)
 async def serve_index():
-    return FileResponse(os.path.join(_HERE, "index.html"))
+    return FileResponse(
+        os.path.join(_HERE, "index.html"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+    )
 
 @app.head("/health", include_in_schema=False)
 async def health_head():
