@@ -138,26 +138,34 @@ def admin_only(u: User = Depends(current_user)):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. Créer les tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    # 2. Auto-seed si la base est vide (utile sur Render)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ Tables créées/vérifiées")
+    except Exception as e:
+        print(f"❌ Erreur création tables: {type(e).__name__}: {e}")
+        raise  # On ne peut pas démarrer sans DB
+    # 2. Auto-seed si la base est vide
     await auto_seed()
     yield
     await engine.dispose()
 
 async def auto_seed():
     """Crée le super-admin et les régions si la base est vierge."""
-    async with AsyncSessionLocal() as db:
-        existing = (await db.execute(select(User).limit(1))).scalar_one_or_none()
-        if existing:
-            return  # déjà peuplée
-        try:
+    from database_local import DB_MODE
+    print(f"🗄️  Mode base de données : {DB_MODE}")
+    try:
+        async with AsyncSessionLocal() as db:
+            existing = (await db.execute(select(User).limit(1))).scalar_one_or_none()
+            if existing:
+                print(f"✅ Base déjà peuplée — seed ignoré.")
+                return
             from seed_db import do_seed
             await do_seed(db)
             await db.commit()
             print("✅ Base de données initialisée automatiquement.")
-        except Exception as e:
-            print(f"⚠️  Auto-seed ignoré : {e}")
+    except Exception as e:
+        print(f"⚠️  Auto-seed erreur : {type(e).__name__}: {e}")
 
 app = FastAPI(
     title="CODISS Cartographie",
@@ -195,11 +203,10 @@ async def health_head():
 
 @app.get("/health")
 async def health():
-    import os
     from fastapi.responses import JSONResponse
-    mode = "postgresql" if os.getenv("DATABASE_URL") else "sqlite"
+    from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": mode, "version": "cea6eec"},
+        content={"status": "ok", "mode": DB_MODE, "version": "b9cceb4"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
