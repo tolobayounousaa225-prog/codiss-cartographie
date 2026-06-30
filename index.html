@@ -1421,8 +1421,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <option value="superadmin" data-fr="Super Administrateur" data-ar="المدير العام">Super Administrateur</option>
         </select>
       </div>
-      <div class="form-row" style="background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.2);border-radius:8px;padding:10px 12px;">
-        <p style="margin:0;font-size:.82rem;color:var(--green);">📧 Un email d'invitation sera automatiquement envoyé à l'utilisateur avec un lien pour définir son propre mot de passe.</p>
+      <div class="form-row full">
+        <label>Mot de passe <span style="color:var(--text3);font-size:.78rem;font-weight:400">(laisser vide = envoyer un lien d'invitation)</span></label>
+        <input type="password" id="u-password" placeholder="Ex: MonMdp@2024 (min. 6 caractères)"/>
       </div>
       <div class="form-row full" id="u-branch-row" style="display:none">
         <label data-fr="Lier à une branche" data-ar="ربط بفرع">Lier à une branche <span class="form-required">*</span></label>
@@ -2558,7 +2559,7 @@ async function toggleUser(id) {
 
 async function openNewUserModal() {
   // Réinitialiser les champs
-  ['u-name','u-email','u-phone'].forEach(id => document.getElementById(id).value = '');
+  ['u-name','u-email','u-phone','u-password'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('u-role').value = 'branch';
   document.getElementById('user-modal-alert').style.display = 'none';
   // Charger les branches dans le sélecteur
@@ -2604,6 +2605,8 @@ async function saveUser() {
     return;
   }
 
+  const pwdEl = document.getElementById('u-password');
+  const pwdVal = pwdEl ? pwdEl.value.trim() : '';
   const payload = {
     full_name: document.getElementById('u-name').value.trim(),
     email:     document.getElementById('u-email').value.trim(),
@@ -2611,6 +2614,7 @@ async function saveUser() {
     role,
     language:  STATE.lang,
   };
+  if (pwdVal) payload.password = pwdVal;
   if (!payload.full_name || !payload.email) {
     showAlert(alertEl,'error', STATE.lang==='fr'?'Nom et email sont obligatoires.':'Name and email are required.');
     return;
@@ -2620,17 +2624,22 @@ async function saveUser() {
     if (role === 'branch' && branchId && newUser && newUser.id) {
       await api('POST', `/branches/${branchId}/assign-user?user_id=${newUser.id}&role=secretary`);
     }
-    if (newUser.email_sent) {
+    if (payload.password) {
+      // Mode direct : mot de passe fourni par l'admin
+      showAlert(alertEl,'success', `✅ Utilisateur créé avec succès ! Mot de passe : <strong>${payload.password}</strong>`);
+      setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, 2500);
+    } else if (newUser.email_sent) {
       showAlert(alertEl,'success', `✅ Utilisateur créé ! Email d'invitation envoyé à ${payload.email}.`);
+      setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, 1800);
     } else {
       const link = newUser.setup_link || '';
       showAlert(alertEl,'success',
-        `✅ Utilisateur créé ! (Email non configuré sur le serveur)<br>
-         <strong>Partagez ce lien</strong> avec l'utilisateur :<br>
+        `✅ Utilisateur créé !<br>
+         <strong>Partagez ce lien</strong> pour qu'il définisse son mot de passe :<br>
          <a href="${link}" target="_blank" style="color:var(--green);word-break:break-all;font-size:.8rem;">${link}</a>`
       );
+      setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, 9000);
     }
-    setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, newUser.email_sent ? 1800 : 9000);
   } catch(e) { showAlert(alertEl,'error', e.message); }
 }
 
