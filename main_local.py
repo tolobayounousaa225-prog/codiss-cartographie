@@ -137,16 +137,11 @@ def admin_only(u: User = Depends(current_user)):
 # ── Démarrage + auto-seed ─────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Créer les tables (non-bloquant: l'app démarre même si DB indispo)
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("Tables OK")
-        # 2. Auto-seed si la base est vide
-        await auto_seed()
-    except Exception as e:
-        print(f"WARN startup DB: {type(e).__name__}: {e}")
-        print("App demarre quand meme - DB sera initialisee a la premiere requete")
+    # 1. Créer les tables SQLite
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    # 2. Auto-seed si la base est vide
+    await auto_seed()
     yield
     await engine.dispose()
 
