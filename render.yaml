@@ -4,7 +4,7 @@ services:
     runtime: python
     buildCommand: pip install -r requirements_render.txt
     startCommand: uvicorn main_local:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-# Build forcé Mon Jun 29 23:49:36 UTC 2026
+        value: "3.11.0"
