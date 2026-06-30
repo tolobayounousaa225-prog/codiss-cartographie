@@ -87,18 +87,25 @@ async def do_seed(db: AsyncSession):
     print(f"  ✅ {len(region_map)} régions prêtes")
 
     # ── Super-admin ───────────────────────────────────────────
+    SUPERADMIN_ID = "codiss-super-admin-0000-000000000001"
     ex = (await db.execute(select(User).where(User.email == "admin@codiss.ci"))).scalar_one_or_none()
     if not ex:
         admin = User(
+            id=SUPERADMIN_ID,
             email="admin@codiss.ci",
             password_hash=pwd_hash("Admin@CODISS2024"), plain_password="Admin@CODISS2024",
             full_name="Administrateur CODISS National",
             role="superadmin", language="fr",
         )
         db.add(admin)
-        print("  ✅ Admin créé : admin@codiss.ci / Admin@CODISS2024")
+        print(f"  ✅ Admin créé (ID fixe: {SUPERADMIN_ID[:8]}...)")
     else:
-        print("  ℹ️  Admin déjà existant")
+        # Mettre à jour l'ID si c'est un ancien UUID aléatoire
+        if ex.id != SUPERADMIN_ID:
+            print(f"  🔄 Migration ID superadmin: {ex.id[:8]} → {SUPERADMIN_ID[:8]}")
+            ex.id = SUPERADMIN_ID
+        else:
+            print("  ℹ️  Admin déjà existant (ID fixe OK)")
 
     # ── Branches de test ──────────────────────────────────────
     branch_ids = {}

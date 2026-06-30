@@ -172,13 +172,14 @@ def _gh_api(method, payload=None):
         print(f"GitHub {method} erreur: {e}")
         return None
 
-async def backup_users_to_github(db: AsyncSession):
-    """Sauvegarde tous les utilisateurs non-superadmin sur GitHub."""
+async def backup_users_to_github(db=None):
+    """Sauvegarde tous les utilisateurs non-superadmin sur GitHub (session propre)."""
     if not _GH_TOKEN: return
     try:
-        rows = (await db.execute(
-            select(User).where(User.role != "superadmin").order_by(User.created_at)
-        )).scalars().all()
+        async with AsyncSessionLocal() as db:
+            rows = (await db.execute(
+                select(User).where(User.role != "superadmin").order_by(User.created_at)
+            )).scalars().all()
         users_data = [
             {"email": u.email, "password_hash": u.password_hash,
              "full_name": u.full_name, "phone": u.phone, "role": u.role,
