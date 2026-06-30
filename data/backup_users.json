@@ -1,7 +1,7 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$lt/.36x36LXEjxhHpi0AnOsxkTPHiueE6on89g.w7ns8/DlVR6tb2",
+    "password_hash": "$2b$12$xjYx3gTxh8aDhjmqSUcanucMJ83xiI4fnFidXs/Q7fq/EqhdNGR5y",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
     "role": "branch",
@@ -11,7 +11,7 @@
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$ynV5rFXXkPMW6PtEpaz29Ofth1qXH4LcZFZIrHxRxbWwY0xSolAV2",
+    "password_hash": "$2b$12$dScb.GEdVbzsP3i6Pue.z./whs1mEKZRaWd4Q4c1JhVHJ6NV4rkV.",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
     "role": "branch",
@@ -21,7 +21,7 @@
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$o4eKRwVukV9/ISCb6hLuOuhzTZtXyWNGFy7LRfongiIMd2KvRXera",
+    "password_hash": "$2b$12$t9AbQy2J4Yggu8UR8MqEEer/9f9dKMJ4TodCcvj2oRHyGevUCJtlS",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
     "role": "branch",
@@ -45,6 +45,16 @@
     "full_name": "BAKAYOKO YAYA",
     "phone": "0707943936",
     "role": "admin",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false
+  },
+  {
+    "email": "idriss@gmail.com",
+    "password_hash": "$2b$12$RYduDFcPU1xuvbFoUg3/8.kacRq0wXjvUXvpqWu5X6hzz1IqD/iGy",
+    "full_name": "IDRISS KONE",
+    "phone": "0867645689",
+    "role": "branch",
     "language": "fr",
     "is_active": true,
     "must_set_password": false
