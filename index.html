@@ -1902,19 +1902,56 @@ function renderReportsChart(as) {
 function renderCoverageList(coverage) {
   const el = document.getElementById('coverage-list');
   if (!coverage || !coverage.length) { el.innerHTML = `<p style="color:var(--text3)">${t('no_data')}</p>`; return; }
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">` +
-    coverage.map(r => {
-      const pct = r.branch_count > 0 ? Math.min(100, r.branch_count * 25) : 0;
-      const col = r.coverage_level==='high' ? 'var(--green2)' : r.coverage_level==='medium' ? 'var(--orange)' : 'var(--red)';
-      return `<div style="background:var(--bg4);border-radius:8px;padding:10px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:.82rem;font-weight:700">${STATE.lang==='fr'?r.name_fr:r.name_en}</span>
-          <span>${r.has_presence ? `<span class="badge-status badge-active">${r.branch_count} br.</span>` : `<span class="badge-status badge-rejected" data-fr="Absent" data-ar="غائب">Absent</span>`}</span>
-        </div>
-        <div class="coverage-bar"><div class="coverage-fill" style="width:${pct}%;background:${col}"></div></div>
-        <div style="font-size:.72rem;color:var(--text3);margin-top:4px">${r.district||''}</div>
-      </div>`;
-    }).join('') + '</div>';
+
+  const covered   = coverage.filter(r => r.has_presence);
+  const uncovered = coverage.filter(r => !r.has_presence);
+  const total     = coverage.length;
+  const pctGlobal = Math.round(covered.length / total * 100);
+
+  // Barre de progression globale
+  const barColor = pctGlobal >= 70 ? 'var(--green2)' : pctGlobal >= 40 ? 'var(--orange)' : 'var(--red)';
+
+  el.innerHTML = `
+    <!-- Résumé global -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:.85rem;color:var(--text2)">
+          <b style="color:var(--green2);font-size:1.1rem">${covered.length}</b> / ${total} régions couvertes
+        </span>
+        <span style="font-size:.85rem;font-weight:700;color:${barColor}">${pctGlobal}%</span>
+      </div>
+      <div class="coverage-bar" style="height:8px">
+        <div class="coverage-fill" style="width:${pctGlobal}%;background:${barColor}"></div>
+      </div>
+    </div>
+
+    <!-- Régions couvertes -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:.78rem;font-weight:700;color:var(--green2);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase">
+        ✅ Régions couvertes (${covered.length})
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${covered.map(r => {
+          const lvlColor = r.coverage_level==='high' ? 'var(--green2)' : 'var(--orange)';
+          return `<div style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.25);border-radius:20px;padding:4px 12px;font-size:.78rem;display:flex;align-items:center;gap:6px">
+            <span style="font-weight:600;color:var(--text1)">${STATE.lang==='fr'?r.name_fr:r.name_en}</span>
+            <span style="background:${lvlColor};color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem">${r.branch_count} br.</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Régions non couvertes (compactes) -->
+    ${uncovered.length > 0 ? `
+    <div>
+      <div style="font-size:.78rem;font-weight:700;color:var(--text3);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase">
+        ⬜ Sans présence CODISS (${uncovered.length})
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${uncovered.map(r => `<span style="background:var(--bg4);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:.74rem;color:var(--text3)">${STATE.lang==='fr'?r.name_fr:r.name_en}</span>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
 }
 
 // ═══════════════════════════════════════════════════════
