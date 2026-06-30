@@ -2414,9 +2414,9 @@ async function loadUsers() {
         <td>${u.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
         <td>
           <div class="btn-group">
-            <button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
+            ${u.role!=='superadmin'?`<button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
               ${u.is_active?(STATE.lang==='fr'?'Désactiver':'Disable'):(STATE.lang==='fr'?'Activer':'Enable')}
-            </button>
+            </button>`:'<span style="font-size:.75rem;color:var(--gray3);font-style:italic">—</span>'}
             <button class="action-btn orange" onclick="adminResetPassword('${u.id}','${u.full_name.replace(/'/g,"\\'")}')">
               ${STATE.lang==='fr'?'🔑 Réinitialiser':'🔑 Reset pwd'}
             </button>

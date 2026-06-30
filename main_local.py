@@ -705,6 +705,8 @@ async def setup_password(data: dict, db: AsyncSession = Depends(get_db)):
 async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     u = await db.get(User, uid)
     if not u: raise HTTPException(404)
+    if u.role == "superadmin":
+        raise HTTPException(403, "Le compte super administrateur ne peut pas être désactivé")
     u.is_active = not u.is_active
     await db.commit()
     return {"is_active": u.is_active}
