@@ -186,7 +186,7 @@ async def backup_users_to_github(db=None):
             cur = conn.cursor()
             cur.execute(
                 "SELECT email, password_hash, full_name, phone, role, language, "
-                "is_active, must_set_password FROM user "
+                "is_active, must_set_password FROM users "
                 "WHERE role != 'superadmin' ORDER BY created_at"
             )
             rows = [dict(r) for r in cur.fetchall()]
@@ -318,7 +318,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "sqlite3-native-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "sqlite3-users-table-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
