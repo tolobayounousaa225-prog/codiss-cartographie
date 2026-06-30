@@ -709,6 +709,33 @@ async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(ad
     await db.commit()
     return {"is_active": u.is_active}
 
+@app.get("/api/admin/users/{uid}/password")
+async def get_user_password(uid: str, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Retourne le mot de passe en clair (super admin uniquement)."""
+    if u.role != "superadmin":
+        raise HTTPException(403, "Réservé au super administrateur")
+    target = await db.get(User, uid)
+    if not target: raise HTTPException(404, "Utilisateur introuvable")
+    return {
+        "id": target.id,
+        "email": target.email,
+        "full_name": target.full_name,
+        "plain_password": target.plain_password or "(non disponible — défini avant cette version)"
+    }
+
+@app.post("/api/admin/users/{uid}/reset-password")
+async def admin_reset_password_visible(uid: str, u: User = Depends(current_user), db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Réinitialise le mot de passe et retourne le nouveau en clair (admin+)."""
+    target = await db.get(User, uid)
+    if not target: raise HTTPException(404, "Utilisateur introuvable")
+    first = target.full_name.split()[0].capitalize() if target.full_name else "User"
+    digits = "".join(random.choices(string.digits, k=4))
+    new_pw = f"{first}@{digits}"
+    target.password_hash = hash_password(new_pw)
+    target.plain_password = new_pw
+    await db.commit()
+    return {"id": uid, "email": target.email, "new_password": new_pw}
+
 @app.get("/api/admin/notifications")
 async def get_notifs(db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
     r = await db.execute(select(Notification).where(Notification.user_id==u.id).order_by(Notification.created_at.desc()).limit(50))
@@ -743,6 +770,7 @@ async def change_password(data: dict, u: User = Depends(current_user), db: Async
     if not verify_password(data.get("current_password", ""), u.password_hash):
         raise HTTPException(400, "Mot de passe actuel incorrect")
     u.password_hash = hash_password(data["new_password"])
+    u.plain_password = data["new_password"]
     await db.commit()
     return {"ok": True}
 

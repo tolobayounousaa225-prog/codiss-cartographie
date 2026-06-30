@@ -2196,6 +2196,7 @@ async function loadMyReports() {
           <div class="btn-group">
             <button class="action-btn outline" onclick="showReportDetail('${r.id}')" data-fr="Voir" data-ar="عرض">Voir</button>
             ${r.status==='rejected'&&!r.branch_response?`<button class="action-btn blue" onclick="openReplyModal('${r.id}','${(r.title||'').replace(/'/g,"\\'")}','${(r.review_notes||'').replace(/'/g,"\\'").replace(/\n/g,' ')}')" >💬 Répondre</button>`:''}
+            ${STATE.me&&STATE.me.role==='superadmin'?`<button class="action-btn" style="background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.8rem;font-weight:600" onclick="viewUserPassword('${u.id}','${(u.full_name||'').replace(/'/g,String.fromCharCode(39))}')">👁 Voir mdp</button>`:''}
           </div>
         </td>
       </tr>`).join('');
@@ -2732,6 +2733,32 @@ async function doFindByName() {
   }
 }
 
+// Voir le mot de passe en clair (super admin uniquement)
+async function viewUserPassword(uid, name) {
+  try {
+    const res = await api('GET', `/admin/users/${uid}/password`);
+    const pw = res.plain_password || '(non disponible)';
+    const info = document.createElement('div');
+    info.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35);z-index:9999;min-width:360px;text-align:center;';
+    info.innerHTML = `
+      <div style="font-size:1.8rem;margin-bottom:8px">🔐</div>
+      <div style="font-weight:800;font-size:1rem;margin-bottom:4px">${res.full_name}</div>
+      <div style="font-size:.8rem;color:#718096;margin-bottom:14px">${res.email}</div>
+      <div style="background:#fffbeb;border:2px dashed #f6ad55;border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:.75rem;color:#975a16;margin-bottom:6px">Mot de passe actuel :</div>
+        <code style="font-size:1.3rem;font-weight:800;letter-spacing:.1em;color:#7b341e">${pw}</code>
+      </div>
+      <button onclick="navigator.clipboard.writeText('${pw}');this.textContent='✅ Copié !'" style="width:100%;padding:9px;background:#ed8936;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:700;margin-bottom:8px">📋 Copier</button>
+      <button onclick="this.parentNode.remove();document.getElementById('pw-overlay-tmp')?.remove()" style="width:100%;padding:9px;background:var(--gray2);color:var(--text);border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:700">Fermer</button>`;
+    const overlay = document.createElement('div');
+    overlay.id = 'pw-overlay-tmp';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;';
+    overlay.onclick = () => { overlay.remove(); info.remove(); };
+    document.body.appendChild(overlay);
+    document.body.appendChild(info);
+  } catch(e) { alert(e.message); }
+}
+
 // Réinitialisation par l'admin (depuis le panel utilisateurs)
 async function adminResetPassword(uid, name) {
   const msg = STATE.lang==='fr'
@@ -2748,9 +2775,9 @@ async function adminResetPassword(uid, name) {
       <div style="font-weight:800;font-size:1rem;margin-bottom:6px">${res.full_name}</div>
       <div style="font-size:.82rem;color:#4a5568;margin-bottom:14px">${STATE.lang==='fr'?'Nouveau mot de passe temporaire :':'New temporary password:'}</div>
       <div style="background:#f0fff4;border:2px dashed #68d391;border-radius:8px;padding:14px;margin-bottom:14px">
-        <code style="font-size:1.4rem;font-weight:800;letter-spacing:.12em;color:#006B3F">${res.temp_password}</code>
+        <code style="font-size:1.4rem;font-weight:800;letter-spacing:.12em;color:#006B3F">${res.new_password}</code>
       </div>
-      <button onclick="navigator.clipboard.writeText('${res.temp_password}');this.textContent='✅ Copié !'" style="width:100%;padding:9px;background:var(--green);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:700;margin-bottom:8px">📋 ${STATE.lang==='fr'?'Copier le mot de passe':'Copy Password'}</button>
+      <button onclick="navigator.clipboard.writeText('${res.new_password}');this.textContent='✅ Copié !'" style="width:100%;padding:9px;background:var(--green);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:700;margin-bottom:8px">📋 ${STATE.lang==='fr'?'Copier le mot de passe':'Copy Password'}</button>
       <button onclick="this.parentNode.remove()" style="width:100%;padding:9px;background:var(--gray2);color:var(--text);border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:700">${STATE.lang==='fr'?'Fermer':'Close'}</button>
       <div style="font-size:.73rem;color:#e53e3e;margin-top:10px">${STATE.lang==='fr'?'⚠️ Transmettez ce mot de passe à l\'utilisateur. Il devra le changer à la prochaine connexion.':'⚠️ Share this password with the user. They must change it on next login.'}</div>`;
     // Overlay

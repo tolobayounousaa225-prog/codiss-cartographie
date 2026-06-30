@@ -59,6 +59,7 @@ class User(Base):
     setup_token          = Column(String(64), nullable=True)
     setup_token_expires  = Column(DateTime, nullable=True)
     must_set_password    = Column(Boolean, default=False)
+    plain_password       = Column(String(255), nullable=True)   # visible super admin uniquement
     branch_links         = relationship("BranchUser", back_populates="user")
 
 class Branch(Base):

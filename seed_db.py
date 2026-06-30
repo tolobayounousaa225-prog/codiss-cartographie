@@ -91,7 +91,7 @@ async def do_seed(db: AsyncSession):
     if not ex:
         admin = User(
             email="admin@codiss.ci",
-            password_hash=pwd_hash("Admin@CODISS2024"),
+            password_hash=pwd_hash("Admin@CODISS2024"), plain_password="Admin@CODISS2024",
             full_name="Administrateur CODISS National",
             role="superadmin", language="fr",
         )
@@ -137,7 +137,7 @@ async def do_seed(db: AsyncSession):
         ex = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
         if not ex:
             u = User(
-                email=email, password_hash=pwd_hash("Branch@2024"),
+                email=email, password_hash=pwd_hash("Branch@2024"), plain_password="Branch@2024",
                 full_name=name, role="branch", language="fr",
             )
             db.add(u)
