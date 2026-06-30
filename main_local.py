@@ -5,7 +5,7 @@ Render : uvicorn main_local:app --host 0.0.0.0 --port $PORT
 """
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date as _date
@@ -171,8 +171,13 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/", include_in_schema=False)
+@app.head("/", include_in_schema=False)
 async def serve_index():
     return FileResponse(os.path.join(_HERE, "index.html"))
+
+@app.head("/health", include_in_schema=False)
+async def health_head():
+    return Response(status_code=200)
 
 @app.get("/health")
 async def health(): return {"status": "ok", "mode": "sqlite", "version": "e74b7a7", "features": ["heartbeat", "email-invitation", "brevo-smtp"]}
