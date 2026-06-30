@@ -611,36 +611,58 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
 async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     ex = await db.execute(select(User).where(User.email == data["email"]))
     if ex.scalar_one_or_none(): raise HTTPException(400, "Email déjà utilisé")
-    # Générer un token de setup sécurisé (valable 48h)
-    token = secrets.token_urlsafe(32)
-    expires = datetime.utcnow() + timedelta(hours=48)
-    # Mot de passe placeholder (l'utilisateur devra le définir via le lien)
-    placeholder_pw = secrets.token_urlsafe(24)
-    u = User(
-        email=data["email"],
-        password_hash=hash_password(placeholder_pw),
-        full_name=data["full_name"],
-        phone=data.get("phone"),
-        role=data.get("role", "branch"),
-        language=data.get("language", "fr"),
-        setup_token=token,
-        setup_token_expires=expires,
-        must_set_password=True,
-    )
-    db.add(u)
-    await db.commit()
-    await db.refresh(u)
-    # Construire le lien et envoyer l'email
-    base_url = str(request.base_url).rstrip("/")
-    setup_link = f"{base_url}/?setup_token={token}"
-    email_sent = send_invitation_email(u.email, u.full_name, setup_link)
-    return {
-        "id": u.id, "email": u.email, "full_name": u.full_name,
-        "role": u.role, "is_active": u.is_active,
-        "created_at": u.created_at.isoformat(),
-        "email_sent": email_sent,
-        "setup_link": setup_link,  # affiché dans l'UI si email non configuré
-    }
+
+    password_provided = data.get("password", "").strip()
+
+    if password_provided:
+        # ── Mode direct : admin fournit le mot de passe ──────────────────
+        u = User(
+            email=data["email"],
+            password_hash=hash_password(password_provided),
+            full_name=data["full_name"],
+            phone=data.get("phone"),
+            role=data.get("role", "branch"),
+            language=data.get("language", "fr"),
+        )
+        db.add(u)
+        await db.commit()
+        await db.refresh(u)
+        return {
+            "id": u.id, "email": u.email, "full_name": u.full_name,
+            "role": u.role, "is_active": u.is_active,
+            "created_at": u.created_at.isoformat(),
+            "email_sent": False,
+            "setup_link": None,
+        }
+    else:
+        # ── Mode invitation : génère token + tente envoi email ───────────
+        token = secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(hours=48)
+        placeholder_pw = secrets.token_urlsafe(24)
+        u = User(
+            email=data["email"],
+            password_hash=hash_password(placeholder_pw),
+            full_name=data["full_name"],
+            phone=data.get("phone"),
+            role=data.get("role", "branch"),
+            language=data.get("language", "fr"),
+            setup_token=token,
+            setup_token_expires=expires,
+            must_set_password=True,
+        )
+        db.add(u)
+        await db.commit()
+        await db.refresh(u)
+        base_url = str(request.base_url).rstrip("/")
+        setup_link = f"{base_url}/?setup_token={token}"
+        email_sent = send_invitation_email(u.email, u.full_name, setup_link)
+        return {
+            "id": u.id, "email": u.email, "full_name": u.full_name,
+            "role": u.role, "is_active": u.is_active,
+            "created_at": u.created_at.isoformat(),
+            "email_sent": email_sent,
+            "setup_link": setup_link,
+        }
 
 @app.get("/api/auth/check-setup-token")
 async def check_setup_token(token: str, db: AsyncSession = Depends(get_db)):
