@@ -136,16 +136,6 @@ def admin_only(u: User = Depends(current_user)):
 
 # ── Démarrage + auto-seed ─────────────────────────────────────
 @asynccontextmanager
-
-# Middleware pour désactiver le cache CDN sur les réponses API
-@app.middleware("http")
-async def no_cache_middleware(request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/api/") or request.url.path == "/health":
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-    return response
-
 async def lifespan(app: FastAPI):
     # 1. Créer les tables
     async with engine.begin() as conn:
@@ -176,6 +166,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# Désactiver le cache CDN Render sur les endpoints dynamiques
+@app.middleware("http")
+async def no_cache_middleware(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/") or request.url.path == "/health":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 # ── Fichiers statiques (CSS, JS, images éventuels) ────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
