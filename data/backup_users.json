@@ -39,4 +39,14 @@
     "is_active": true,
     "must_set_password": false
   }
+  {
+    "email": "yayabakayoko@gmail.com",
+    "password_hash": "CODISS123",
+    "full_name": "yaya bakayoko",
+    "phone": "0576483606",
+    "role": "super admin",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false
+  }
 ]
