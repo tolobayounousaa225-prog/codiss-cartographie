@@ -2515,7 +2515,7 @@ function fmtDate(iso) {
   const d = new Date(iso);
   const now = new Date();
   const diff = Math.floor((now - d) / 60000);
-  if (diff < 2) return 'À l'instant';
+  if (diff < 2) return "À l'instant";
   if (diff < 60) return `Il y a ${diff} min`;
   if (diff < 1440) return `Il y a ${Math.floor(diff/60)}h`;
   if (diff < 2880) return 'Hier';
