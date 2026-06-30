@@ -40,7 +40,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 SECRET_KEY  = "codiss_local_test_secret_key_2024_ne_pas_utiliser_en_prod"
 ALGORITHM   = "HS256"
-EXPIRE_MINS = 480
+EXPIRE_MINS = 43200  # 30 jours — session persistante
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
