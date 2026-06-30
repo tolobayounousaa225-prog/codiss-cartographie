@@ -318,7 +318,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "sqlite3-users-table-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "role-change-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
@@ -868,6 +868,22 @@ async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(ad
     u.is_active = not u.is_active
     await db.commit()
     return {"is_active": u.is_active}
+
+
+@app.patch("/api/admin/users/{uid}/role")
+async def change_user_role(uid: str, data: dict, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+    target = await db.get(User, uid)
+    if not target: raise HTTPException(404, "Utilisateur introuvable")
+    if target.role == "superadmin":
+        raise HTTPException(403, "Impossible de modifier le rôle du super administrateur")
+    allowed = ["admin", "branch", "viewer"]
+    new_role = data.get("role", "")
+    if new_role not in allowed:
+        raise HTTPException(400, f"Rôle invalide. Valeurs acceptées : {allowed}")
+    target.role = new_role
+    await db.commit()
+    await backup_users_to_github(db=db)
+    return {"id": target.id, "email": target.email, "role": target.role}
 
 @app.get("/api/admin/users/{uid}/password")
 async def get_user_password(uid: str, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):

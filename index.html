@@ -209,6 +209,10 @@ body::before{
 .role-admin{background:rgba(255,145,0,.15);color:var(--orange);border:1px solid rgba(255,145,0,.3);}
 .role-branch{background:rgba(68,138,255,.15);color:var(--blue);border:1px solid rgba(68,138,255,.3);}
 .role-viewer{background:var(--bg4);color:var(--text3);border:1px solid var(--border);}
+.role-select-inline{background:var(--bg3);color:var(--text1);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:.78rem;cursor:pointer;outline:none;transition:border-color .2s;}
+.role-select-inline:hover{border-color:var(--blue);}
+.role-select-inline{background:var(--bg3);color:var(--text1);border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:.78rem;cursor:pointer;outline:none;}
+.role-select-inline:hover{border-color:var(--blue);}
 
 .nav-section{padding:8px 0;}
 .nav-section-title{
@@ -2654,26 +2658,46 @@ function filterUsers() {
 }
 function renderUsersTable(users) {
   const tbody = document.getElementById('users-tbody');
-    tbody.innerHTML = users.map(u => `
-      <tr>
-        <td style="font-weight:600">${u.full_name}</td>
-        <td style="font-size:.82rem">${u.email}</td>
-        <td>${roleBadgeHTML(u.role)}</td>
-        <td style="font-size:.82rem">${u.phone||'—'}</td>
-        <td>${u.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
-        <td style="font-size:.78rem;color:var(--text3)">${fmtDate(u.last_login)}</td>
-        <td>
-          <div class="btn-group">
-            ${u.role!=='superadmin'?`<button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td style="font-weight:600">${u.full_name}</td>
+      <td style="font-size:.82rem">${u.email}</td>
+      <td>${roleBadgeHTML(u.role)}</td>
+      <td style="font-size:.82rem">${u.phone||'—'}</td>
+      <td>${u.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
+      <td style="font-size:.78rem;color:var(--text3)">${fmtDate(u.last_login)}</td>
+      <td>
+        <div class="btn-group" style="flex-wrap:wrap;gap:4px">
+          ${u.role!=='superadmin'?`
+            <select class="role-select-inline" data-uid="${u.id}" onchange="changeUserRole('${u.id}', this.value, this)">
+              <option value="branch" ${u.role==='branch'?'selected':''}>Secrétaire</option>
+              <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+              <option value="viewer" ${u.role==='viewer'?'selected':''}>Observateur</option>
+            </select>
+            <button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
               ${u.is_active?(STATE.lang==='fr'?'Désactiver':'Disable'):(STATE.lang==='fr'?'Activer':'Enable')}
-            </button>`:'<span style="font-size:.75rem;color:var(--gray3);font-style:italic">—</span>'}
-            <button class="action-btn orange" onclick="adminResetPassword('${u.id}','${u.full_name.replace(/'/g,"\\'")}')">
-              ${STATE.lang==='fr'?'🔑 Réinitialiser':'🔑 Reset pwd'}
             </button>
-          </div>
-        </td>
-      </tr>`).join('');
+          `:'<span style="font-size:.75rem;color:var(--gray3);font-style:italic">Super Admin</span>'}
+          <button class="action-btn orange" onclick="adminResetPassword('${u.id}','${u.full_name.replace(/'/g,String.fromCharCode(92,39))}')">
+            ${STATE.lang==='fr'?'🔑 Réinitialiser':'🔑 Reset'}
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
 }
+
+async function changeUserRole(uid, newRole, selectEl) {
+  const prevRole = selectEl.getAttribute('data-prev') || selectEl.value;
+  selectEl.setAttribute('data-prev', newRole);
+  try {
+    await api('PATCH', `/admin/users/${uid}/role`, { role: newRole });
+    await loadUsers();
+  } catch(e) {
+    alert(e.message);
+    selectEl.value = prevRole;
+  }
+}
+
 
 async function toggleUser(id) {
   try { await api('PATCH', `/admin/users/${id}/toggle-active`); loadUsers(); }
