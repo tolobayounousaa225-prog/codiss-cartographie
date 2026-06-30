@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date as _date
 from typing import Optional, List
-import uuid, os, random, string, secrets, smtplib, ssl
+import uuid, os, random, string, secrets, smtplib, ssl, asyncio, urllib.request, urllib.error, base64, json as _json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -145,6 +145,101 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
+
+# ══════════════════════════════════════════════════════
+# PERSISTANCE GITHUB — Sauvegarde / Restauration users
+# ══════════════════════════════════════════════════════
+_GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # Définir GITHUB_TOKEN dans Render env vars
+_GH_REPO  = "tolobayounousaa225-prog/codiss-cartographie"
+_GH_FILE  = "data/backup_users.json"
+
+def _gh_api(method, payload=None):
+    """Appel synchrone GitHub API (appellé via asyncio.to_thread)."""
+    url = f"https://api.github.com/repos/{_GH_REPO}/contents/{_GH_FILE}"
+    data = _json.dumps(payload).encode() if payload else None
+    req = urllib.request.Request(url, data=data, method=method)
+    req.add_header("Authorization", f"token {_GH_TOKEN}")
+    req.add_header("Accept", "application/vnd.github.v3+json")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return _json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        print(f"GitHub {method}: HTTP {e.code} — {body[:200]}")
+        return None
+    except Exception as e:
+        print(f"GitHub {method} erreur: {e}")
+        return None
+
+async def backup_users_to_github(db: AsyncSession):
+    """Sauvegarde tous les utilisateurs non-superadmin sur GitHub."""
+    if not _GH_TOKEN: return
+    try:
+        rows = (await db.execute(
+            select(User).where(User.role != "superadmin").order_by(User.created_at)
+        )).scalars().all()
+        users_data = [
+            {"email": u.email, "password_hash": u.password_hash,
+             "full_name": u.full_name, "phone": u.phone, "role": u.role,
+             "language": u.language or "fr", "is_active": u.is_active,
+             "must_set_password": bool(u.must_set_password)}
+            for u in rows
+        ]
+        encoded = base64.b64encode(
+            _json.dumps(users_data, ensure_ascii=False, indent=2).encode()
+        ).decode()
+
+        def _push():
+            existing = _gh_api("GET")
+            sha = existing.get("sha") if existing else None
+            payload = {
+                "message": f"backup: {len(users_data)} users — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+                "content": encoded,
+            }
+            if sha: payload["sha"] = sha
+            return _gh_api("PUT", payload)
+
+        res = await asyncio.to_thread(_push)
+        if res: print(f"✅ GitHub backup: {len(users_data)} utilisateurs sauvegardés")
+        else:    print("⚠️  GitHub backup échoué (non bloquant)")
+    except Exception as e:
+        print(f"⚠️  backup_users_to_github: {e}")
+
+async def restore_users_from_github(db: AsyncSession):
+    """Restaure les utilisateurs depuis GitHub au démarrage."""
+    if not _GH_TOKEN: return
+    try:
+        def _fetch():
+            res = _gh_api("GET")
+            if not res or "content" not in res: return []
+            raw = base64.b64decode(res["content"].replace("\n","")).decode()
+            return _json.loads(raw)
+
+        users_data = await asyncio.to_thread(_fetch)
+        if not users_data:
+            print("GitHub: aucun utilisateur à restaurer"); return
+
+        restored = 0
+        for ud in users_data:
+            ex = (await db.execute(select(User).where(User.email == ud["email"]))).scalar_one_or_none()
+            if ex: continue
+            db.add(User(
+                email=ud["email"], password_hash=ud["password_hash"],
+                full_name=ud["full_name"], phone=ud.get("phone"),
+                role=ud.get("role","branch"), language=ud.get("language","fr"),
+                is_active=ud.get("is_active", True),
+                must_set_password=ud.get("must_set_password", False),
+            ))
+            restored += 1
+        if restored > 0:
+            await db.commit()
+            print(f"✅ GitHub restauration: {restored} utilisateurs restaurés")
+        else:
+            print(f"GitHub: tous les {len(users_data)} users déjà présents")
+    except Exception as e:
+        print(f"⚠️  restore_users_from_github: {e}")
+
 async def auto_seed():
     """Crée le super-admin et les régions si la base est vierge."""
     from database_local import DB_MODE
@@ -154,11 +249,15 @@ async def auto_seed():
             existing = (await db.execute(select(User).limit(1))).scalar_one_or_none()
             if existing:
                 print(f"✅ Base déjà peuplée — seed ignoré.")
+                # Restaurer quand même les users GitHub (ils auraient pu être perdus)
+                await restore_users_from_github(db)
                 return
             from seed_db import do_seed
             await do_seed(db)
             await db.commit()
             print("✅ Base de données initialisée automatiquement.")
+            # Restaurer les utilisateurs sauvegardés sur GitHub
+            await restore_users_from_github(db)
     except Exception as e:
         print(f"⚠️  Auto-seed erreur : {type(e).__name__}: {e}")
 
@@ -667,6 +766,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
+        asyncio.create_task(backup_users_to_github(db))
         return {
             "id": u.id, "email": u.email, "full_name": u.full_name,
             "role": u.role, "is_active": u.is_active,
@@ -693,6 +793,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
+        asyncio.create_task(backup_users_to_github(db))
         base_url = str(request.base_url).rstrip("/")
         setup_link = f"{base_url}/?setup_token={token}"
         email_sent = send_invitation_email(u.email, u.full_name, setup_link)
@@ -851,6 +952,7 @@ async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(ad
     if not user: raise HTTPException(404)
     await db.delete(user)
     await db.commit()
+    asyncio.create_task(backup_users_to_github(db))
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
