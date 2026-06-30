@@ -192,7 +192,7 @@ async def health_head():
 async def health():
     from fastapi.responses import JSONResponse
     return JSONResponse(
-        content={"status": "ok", "mode": "sqlite", "version": "51ccf01", "features": ["heartbeat", "email-invitation", "brevo-smtp", "head-fix"]},
+        content={"status": "ok", "mode": "sqlite", "version": "455c6b0", "features": ["heartbeat", "email-invitation", "brevo-smtp", "head-fix"]},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
