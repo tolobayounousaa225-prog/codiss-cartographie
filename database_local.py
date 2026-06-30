@@ -1,5 +1,7 @@
 """
 Base de données — SQLite (local) ou PostgreSQL Neon/Render (prod)
+DATABASE_URL fourni par Render ou variable d'env → PostgreSQL
+Sinon → SQLite local
 """
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -8,24 +10,26 @@ from sqlalchemy.orm import DeclarativeBase
 _raw_url = os.getenv("DATABASE_URL", "").strip()
 
 if _raw_url:
-    # Neon/Render donnent postgresql:// ou postgres://
-    # asyncpg a besoin de postgresql+asyncpg://
+    # Convertir postgres:// ou postgresql:// → postgresql+asyncpg://
     _url = _raw_url
-    for prefix in ("postgres://", "postgresql://"):
-        if _url.startswith(prefix):
-            _url = "postgresql+asyncpg://" + _url[len(prefix):]
+    for old in ("postgres://", "postgresql://"):
+        if _url.startswith(old):
+            _url = "postgresql+asyncpg://" + _url[len(old):]
             break
 
-    # Garder ?sslmode=require tel quel — asyncpg le gère nativement
-    # Juste s'assurer qu'on n'a pas de doublon asyncpg
+    # asyncpg utilise ?ssl=true, PAS ?sslmode=require (syntaxe psycopg2)
+    # On supprime sslmode et on passe ssl via connect_args
+    if "?" in _url:
+        base, qs = _url.split("?", 1)
+        params = [p for p in qs.split("&") if not p.startswith("sslmode")]
+        _url = base + ("?" + "&".join(params) if params else "")
+
     DATABASE_URL = _url
     DB_MODE = "postgresql"
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        # Pas de pool_pre_ping sur free tier (évite crash au démarrage)
-        pool_size=2,
-        max_overflow=3,
+        connect_args={"ssl": True},   # SSL requis pour Neon
     )
 else:
     DATABASE_URL = "sqlite+aiosqlite:///./codiss_local.db"
