@@ -174,27 +174,31 @@ def _gh_api(method, payload=None):
 
 async def backup_users_to_github(db=None):
     """Sauvegarde tous les utilisateurs non-superadmin sur GitHub.
-    Si db est fourni, utilise la session existante. Sinon ouvre une nouvelle.
+    Lit directement depuis SQLite3 (sync) pour éviter tout problème d'isolation.
     """
     if not _GH_TOKEN: return
     try:
-        async def _query(session):
-            rows = (await session.execute(
-                select(User).where(User.role != "superadmin").order_by(User.created_at)
-            )).scalars().all()
-            return [
-                {"email": u.email, "password_hash": u.password_hash,
-                 "full_name": u.full_name, "phone": u.phone, "role": u.role,
-                 "language": u.language or "fr", "is_active": u.is_active,
-                 "must_set_password": bool(u.must_set_password)}
-                for u in rows
-            ]
+        def _read_users_sync():
+            import sqlite3 as _sqlite3
+            db_path = os.path.join(os.path.dirname(__file__), "codiss_local.db")
+            conn = _sqlite3.connect(db_path)
+            conn.row_factory = _sqlite3.Row
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT email, password_hash, full_name, phone, role, language, "
+                "is_active, must_set_password FROM user "
+                "WHERE role != 'superadmin' ORDER BY created_at"
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            conn.close()
+            return rows
 
-        if db is not None:
-            users_data = await _query(db)
-        else:
-            async with AsyncSessionLocal() as new_db:
-                users_data = await _query(new_db)
+        users_data = await asyncio.to_thread(_read_users_sync)
+        # Normaliser les types
+        for u in users_data:
+            u["language"] = u.get("language") or "fr"
+            u["is_active"] = bool(u.get("is_active", 1))
+            u["must_set_password"] = bool(u.get("must_set_password", 0))
 
         print(f"📋 Backup: {len(users_data)} utilisateurs trouvés en DB")
         encoded = base64.b64encode(
@@ -314,7 +318,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "session-passthrough-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "sqlite3-native-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
