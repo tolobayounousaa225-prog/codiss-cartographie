@@ -196,6 +196,14 @@ async def health():
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
+@app.get("/api/version")
+async def api_version():
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={"version": "4138ed7", "status": "ok", "mode": "sqlite", "features": ["heartbeat", "email-invitation", "brevo-smtp", "head-fix", "api-version"]},
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+    )
+
 # ══════════════════════════════════════════════════════
 # AUTH
 # ══════════════════════════════════════════════════════
