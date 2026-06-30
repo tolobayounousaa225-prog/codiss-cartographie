@@ -136,6 +136,16 @@ def admin_only(u: User = Depends(current_user)):
 
 # ── Démarrage + auto-seed ─────────────────────────────────────
 @asynccontextmanager
+
+# Middleware pour désactiver le cache CDN sur les réponses API
+@app.middleware("http")
+async def no_cache_middleware(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/") or request.url.path == "/health":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
 async def lifespan(app: FastAPI):
     # 1. Créer les tables
     async with engine.begin() as conn:
@@ -180,7 +190,12 @@ async def health_head():
     return Response(status_code=200)
 
 @app.get("/health")
-async def health(): return {"status": "ok", "mode": "sqlite", "version": "e74b7a7", "features": ["heartbeat", "email-invitation", "brevo-smtp"]}
+async def health():
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={"status": "ok", "mode": "sqlite", "version": "51ccf01", "features": ["heartbeat", "email-invitation", "brevo-smtp", "head-fix"]},
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+    )
 
 # ══════════════════════════════════════════════════════
 # AUTH
