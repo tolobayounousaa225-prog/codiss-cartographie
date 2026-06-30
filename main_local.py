@@ -175,7 +175,7 @@ async def serve_index():
     return FileResponse(os.path.join(_HERE, "index.html"))
 
 @app.get("/health")
-async def health(): return {"status": "ok", "mode": "sqlite"}
+async def health(): return {"status": "ok", "mode": "sqlite", "version": "e74b7a7", "features": ["heartbeat", "email-invitation", "brevo-smtp"]}
 
 # ══════════════════════════════════════════════════════
 # AUTH
