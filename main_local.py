@@ -184,13 +184,14 @@ async def no_cache_middleware(request, call_next):
 # ── Fichiers statiques (CSS, JS, images éventuels) ────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
+_NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+
 @app.get("/", include_in_schema=False)
 @app.head("/", include_in_schema=False)
+@app.get("/app", include_in_schema=False)
+@app.get("/login", include_in_schema=False)
 async def serve_index():
-    return FileResponse(
-        os.path.join(_HERE, "index.html"),
-        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
-    )
+    return FileResponse(os.path.join(_HERE, "index.html"), headers=_NO_CACHE)
 
 @app.head("/health", include_in_schema=False)
 async def health_head():
