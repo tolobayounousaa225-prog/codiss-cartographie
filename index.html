@@ -6,6 +6,7 @@
 <title>CODISS — Système de Cartographie Nationale</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{
   /* Brand */
@@ -1028,6 +1029,18 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
         </div>
 
 
+        <!-- ═══ GRAPHIQUES DASHBOARD ═══ -->
+        <div id="charts-row" class="section-hidden" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
+          <div class="panel" style="padding:20px;">
+            <div class="panel-title" style="margin-bottom:14px;font-size:.9rem;">📊 Statuts des branches</div>
+            <div style="position:relative;height:200px;"><canvas id="chart-branches"></canvas></div>
+          </div>
+          <div class="panel" style="padding:20px;">
+            <div class="panel-title" style="margin-bottom:14px;font-size:.9rem;">📈 Rapports — 6 derniers mois</div>
+            <div style="position:relative;height:200px;"><canvas id="chart-reports"></canvas></div>
+          </div>
+        </div>
+
         <!-- ═══ PANEL UTILISATEURS EN LIGNE (superadmin uniquement) ═══ -->
         <div id="online-users-panel" class="panel section-hidden" style="margin-bottom:18px;">
           <div class="panel-header">
@@ -1223,6 +1236,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
             <span><span class="role-badge role-viewer">Observateur</span> <span style="font-size:.75rem;color:var(--text3)" data-fr="— Lecture seule" data-ar="— قراءة فقط">— Lecture seule</span></span>
           </div>
 
+          <div style="margin-bottom:12px;">
+            <input id="users-search" type="text" placeholder="🔍 Rechercher par nom, email ou rôle…" oninput="filterUsers()" style="width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:.85rem;outline:none;">
+          </div>
           <div class="table-wrap">
             <table>
               <thead><tr>
@@ -1231,6 +1247,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
                 <th data-fr="Rôle" data-ar="الدور">Rôle</th>
                 <th data-fr="Téléphone" data-ar="الهاتف">Téléphone</th>
                 <th data-fr="Actif" data-ar="نشط">Actif</th>
+                <th data-fr="Dernière connexion" data-ar="آخر دخول">Dernière connexion</th>
                 <th data-fr="Actions" data-ar="الإجراءات">Actions</th>
               </tr></thead>
               <tbody id="users-tbody"></tbody>
@@ -1726,7 +1743,78 @@ async function loadDashboard() {
 
     const coverage = await api('GET', '/map/coverage-summary');
     renderCoverageList(coverage);
+
+    // ── Graphiques (admin uniquement) ──────────────────────────────
+    if (STATE.me && ['admin','superadmin'].includes(STATE.me.role)) {
+      const as = await api('GET', '/admin/stats');
+      if (as) {
+        document.getElementById('st-reports').textContent = as.total_reports || '0';
+        if (as.pending_reports > 0) {
+          const b = document.getElementById('pending-report-badge');
+          if (b) { b.textContent = as.pending_reports; b.style.display = 'inline'; }
+        }
+        document.getElementById('charts-row').style.display = 'grid';
+        document.getElementById('charts-row').classList.remove('section-hidden');
+        renderBranchChart(as);
+        renderReportsChart(as);
+      }
+    }
   } catch(e) { console.error(e); }
+}
+
+let _chartBranch = null, _chartReports = null;
+
+function renderBranchChart(as) {
+  const ctx = document.getElementById('chart-branches');
+  if (!ctx) return;
+  if (_chartBranch) _chartBranch.destroy();
+  _chartBranch = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Actives', 'En attente', 'Suspendues'],
+      datasets: [{
+        data: [as.active_branches||0, as.pending_branches||0, as.suspended_branches||0],
+        backgroundColor: ['#00e676','#ff9800','#ff1744'],
+        borderColor: 'transparent', borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'bottom', labels:{ color:'#a0aec0', font:{size:11}, padding:14 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
+      },
+      cutout: '62%',
+    }
+  });
+}
+
+function renderReportsChart(as) {
+  const ctx = document.getElementById('chart-reports');
+  if (!ctx || !as.reports_by_month) return;
+  if (_chartReports) _chartReports.destroy();
+  _chartReports = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: as.reports_by_month.labels,
+      datasets: [{
+        label: 'Rapports',
+        data: as.reports_by_month.data,
+        backgroundColor: 'rgba(0,230,118,.25)',
+        borderColor: '#00e676',
+        borderWidth: 2, borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display:false } },
+      scales: {
+        x: { grid:{ color:'rgba(255,255,255,.05)' }, ticks:{ color:'#a0aec0', font:{size:10} } },
+        y: { grid:{ color:'rgba(255,255,255,.05)' }, ticks:{ color:'#a0aec0', font:{size:10} }, beginAtZero:true, precision:0 }
+      }
+    }
+  });
 }
 
 function renderCoverageList(coverage) {
@@ -2405,6 +2493,30 @@ async function loadUsers() {
   try {
     const users = await api('GET', '/admin/users');
     if (!users||!users.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; return; }
+    window._usersCache = users;
+    renderUsersTable(users);
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">${e.message}</td></tr>`; }
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 60000);
+  if (diff < 2) return 'À l'instant';
+  if (diff < 60) return `Il y a ${diff} min`;
+  if (diff < 1440) return `Il y a ${Math.floor(diff/60)}h`;
+  if (diff < 2880) return 'Hier';
+  return d.toLocaleDateString('fr-FR', {day:'2-digit',month:'short'});
+}
+function filterUsers() {
+  const q = document.getElementById('users-search').value.toLowerCase();
+  const filtered = (window._usersCache||[]).filter(u =>
+    u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
+  );
+  renderUsersTable(filtered);
+}
+function renderUsersTable(users) {
+  const tbody = document.getElementById('users-tbody');
     tbody.innerHTML = users.map(u => `
       <tr>
         <td style="font-weight:600">${u.full_name}</td>
@@ -2412,6 +2524,7 @@ async function loadUsers() {
         <td>${roleBadgeHTML(u.role)}</td>
         <td style="font-size:.82rem">${u.phone||'—'}</td>
         <td>${u.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
+        <td style="font-size:.78rem;color:var(--text3)">${fmtDate(u.last_login)}</td>
         <td>
           <div class="btn-group">
             ${u.role!=='superadmin'?`<button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
@@ -2423,7 +2536,6 @@ async function loadUsers() {
           </div>
         </td>
       </tr>`).join('');
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red)">${e.message}</td></tr>`; }
 }
 
 async function toggleUser(id) {
@@ -3226,6 +3338,55 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch(e) { doLogout(); }
   }
 });
+</script>
+
+<!-- ══ MODALE INACTIVITÉ ══════════════════════════════════════════ -->
+<div id="inactivity-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg1,#1a1f2e);border:1px solid var(--border,#2d3748);border-radius:16px;padding:32px;max-width:380px;width:90%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+    <div style="font-size:2.5rem;margin-bottom:12px;">⏱️</div>
+    <div style="font-weight:800;font-size:1.1rem;margin-bottom:8px;">Session inactive</div>
+    <div style="color:var(--text3,#a0aec0);font-size:.88rem;margin-bottom:20px;">Vous serez déconnecté dans <strong id="inactivity-countdown" style="color:var(--red,#ff1744)">5:00</strong> pour inactivité.</div>
+    <button onclick="resetInactivityTimer()" style="width:100%;padding:11px;background:var(--green,#00e676);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;">✅ Je suis toujours là</button>
+  </div>
+</div>
+
+<script>
+// ── Minuterie d'inactivité (45 min → warning, +5 min → déconnexion) ──
+let _inactTimer = null, _countTimer = null, _warnSecs = 300;
+const INACTIVE_MS = 45 * 60 * 1000;  // 45 minutes
+const WARN_SECS   = 5 * 60;           // 5 minutes de warning
+
+function resetInactivityTimer() {
+  document.getElementById('inactivity-modal').style.display = 'none';
+  clearTimeout(_inactTimer);
+  clearInterval(_countTimer);
+  if (STATE.token) _inactTimer = setTimeout(showInactivityWarning, INACTIVE_MS);
+}
+
+function showInactivityWarning() {
+  if (!STATE.token) return;
+  _warnSecs = WARN_SECS;
+  const modal = document.getElementById('inactivity-modal');
+  modal.style.display = 'flex';
+  updateCountdown();
+  _countTimer = setInterval(() => {
+    _warnSecs--;
+    updateCountdown();
+    if (_warnSecs <= 0) { clearInterval(_countTimer); doLogout(); }
+  }, 1000);
+}
+
+function updateCountdown() {
+  const m = Math.floor(_warnSecs / 60).toString().padStart(2,'0');
+  const s = (_warnSecs % 60).toString().padStart(2,'0');
+  const el = document.getElementById('inactivity-countdown');
+  if (el) el.textContent = `${m}:${s}`;
+}
+
+// Réinitialise le timer sur toute interaction
+['mousemove','keydown','click','scroll','touchstart'].forEach(evt =>
+  document.addEventListener(evt, () => { if (STATE.token) resetInactivityTimer(); }, { passive: true })
+);
 </script>
 </body>
 </html>

@@ -591,12 +591,40 @@ async def coverage_summary(db: AsyncSession = Depends(get_db), _=Depends(current
 # ══════════════════════════════════════════════════════
 @app.get("/api/admin/stats")
 async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    # Statuts des branches
+    branch_rows = (await db.execute(select(Branch.status, func.count()).group_by(Branch.status))).all()
+    branch_by_status = {r[0]: r[1] for r in branch_rows}
+    # Rapports des 6 derniers mois
+    six_months_ago = datetime.utcnow().replace(day=1) - timedelta(days=150)
+    rpt_rows = (await db.execute(
+        select(PresenceReport.submitted_at).where(PresenceReport.submitted_at >= six_months_ago)
+    )).scalars().all()
+    monthly = {}
+    for dt in rpt_rows:
+        if dt:
+            key = dt.strftime("%Y-%m")
+            monthly[key] = monthly.get(key, 0) + 1
+    # Trier les 6 derniers mois
+    import calendar
+    months_labels = []
+    months_data = []
+    for i in range(5, -1, -1):
+        d = datetime.utcnow().replace(day=1) - timedelta(days=i*30)
+        key = d.strftime("%Y-%m")
+        label = d.strftime("%b %Y")
+        months_labels.append(label)
+        months_data.append(monthly.get(key, 0))
     return {
         "total_users":    (await db.execute(select(func.count()).select_from(User))).scalar(),
         "total_branches": (await db.execute(select(func.count()).select_from(Branch))).scalar(),
-        "active_branches":(await db.execute(select(func.count()).select_from(Branch).where(Branch.status=="active"))).scalar(),
+        "active_branches": branch_by_status.get("active", 0),
+        "pending_branches": branch_by_status.get("pending", 0),
+        "suspended_branches": branch_by_status.get("suspended", 0) + branch_by_status.get("rejected", 0),
         "total_reports":  (await db.execute(select(func.count()).select_from(PresenceReport))).scalar(),
         "pending_reports":(await db.execute(select(func.count()).select_from(PresenceReport).where(PresenceReport.status=="submitted"))).scalar(),
+        "approved_reports":(await db.execute(select(func.count()).select_from(PresenceReport).where(PresenceReport.status=="approved"))).scalar(),
+        "branch_by_status": branch_by_status,
+        "reports_by_month": {"labels": months_labels, "data": months_data},
     }
 
 @app.get("/api/admin/users")
@@ -604,7 +632,9 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     r = await db.execute(select(User).order_by(User.created_at.desc()))
     return [{"id": u.id, "email": u.email, "full_name": u.full_name, "phone": u.phone,
              "role": u.role, "language": u.language, "is_active": u.is_active,
-             "created_at": u.created_at.isoformat() if u.created_at else None}
+             "created_at": u.created_at.isoformat() if u.created_at else None,
+             "last_login": u.last_login.isoformat() if u.last_login else None,
+             "has_plain_password": bool(u.plain_password)}
             for u in r.scalars().all()]
 
 @app.post("/api/admin/users", status_code=201)
