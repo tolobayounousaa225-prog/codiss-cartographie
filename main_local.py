@@ -195,9 +195,11 @@ async def health_head():
 
 @app.get("/health")
 async def health():
+    import os
     from fastapi.responses import JSONResponse
+    mode = "postgresql" if os.getenv("DATABASE_URL") else "sqlite"
     return JSONResponse(
-        content={"status": "ok", "mode": "sqlite", "version": "455c6b0", "features": ["heartbeat", "email-invitation", "brevo-smtp", "head-fix"]},
+        content={"status": "ok", "mode": mode, "version": "cea6eec"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
