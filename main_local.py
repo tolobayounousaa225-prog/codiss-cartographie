@@ -3,7 +3,7 @@ CODISS Cartographie — Backend FastAPI (SQLite)
 Local  : uvicorn main_local:app --reload --port 8000
 Render : uvicorn main_local:app --host 0.0.0.0 --port $PORT
 """
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -304,7 +304,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "fa7bab7-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "background-tasks-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
@@ -750,7 +750,7 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
             for u in r.scalars().all()]
 
 @app.post("/api/admin/users", status_code=201)
-async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+async def create_user(data: dict, request: Request, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     ex = await db.execute(select(User).where(User.email == data["email"]))
     if ex.scalar_one_or_none(): raise HTTPException(400, "Email déjà utilisé")
 
@@ -769,7 +769,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
-        asyncio.ensure_future(backup_users_to_github())
+        background_tasks.add_task(backup_users_to_github)
         return {
             "id": u.id, "email": u.email, "full_name": u.full_name,
             "role": u.role, "is_active": u.is_active,
@@ -796,7 +796,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
-        asyncio.ensure_future(backup_users_to_github())
+        background_tasks.add_task(backup_users_to_github)
         base_url = str(request.base_url).rstrip("/")
         setup_link = f"{base_url}/?setup_token={token}"
         email_sent = send_invitation_email(u.email, u.full_name, setup_link)
@@ -950,12 +950,12 @@ async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(
     return {"message": f"{b.name} rejetée"}
 
 @app.delete("/api/admin/users/{uid}")
-async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+async def delete_user(uid: str, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     user = await db.get(User, uid)
     if not user: raise HTTPException(404)
     await db.delete(user)
     await db.commit()
-    asyncio.ensure_future(backup_users_to_github())
+    background_tasks.add_task(backup_users_to_github)
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
