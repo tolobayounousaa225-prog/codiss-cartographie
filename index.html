@@ -1560,15 +1560,24 @@ function setLang(lang) {
 // ═══════════════════════════════════════════════════════
 // API HELPER
 // ═══════════════════════════════════════════════════════
-async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+async function api(method, path, body, timeoutMs=90000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const opts = { method, headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal };
   if (STATE.token) opts.headers['Authorization'] = 'Bearer ' + STATE.token;
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(API + path, opts);
-  if (res.status === 401) { doLogout(); return; }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || 'Erreur serveur');
-  return data;
+  try {
+    const res = await fetch(API + path, opts);
+    clearTimeout(timer);
+    if (res.status === 401) { doLogout(); return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Erreur serveur');
+    return data;
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Le serveur met du temps à répondre (première connexion). Réessayez dans 30 secondes.');
+    throw e;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1578,10 +1587,12 @@ async function doLogin() {
   const email = document.getElementById('inp-email').value.trim();
   const pwd   = document.getElementById('inp-password').value;
   const errEl = document.getElementById('login-error');
+  const btn   = document.querySelector('#login-screen .btn-primary');
   errEl.style.display = 'none';
   if (!email || !pwd) { errEl.textContent = 'Remplissez tous les champs.'; errEl.style.display='block'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Connexion…'; }
   try {
-    const res = await api('POST', '/auth/login', { email, password: pwd });
+    const res = await api('POST', '/auth/login', { email, password: pwd }, 120000);
     if (!res || !res.access_token) throw new Error('Réponse invalide du serveur');
     STATE.token = res.access_token;
     STATE.user  = { id: res.user_id, name: res.full_name, role: res.role, lang: res.language,
@@ -1593,6 +1604,8 @@ async function doLogin() {
   } catch(e) {
     errEl.textContent = e.message;
     errEl.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Se connecter'; }
   }
 }
 
@@ -3305,6 +3318,8 @@ async function doSetupPassword() {
 // AUTO-LOGIN
 // ═══════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
+  // Ping silencieux pour réveiller le service Render (free tier spin-down)
+  fetch('/health').catch(() => {});
   // Détecter un token d'invitation dans l'URL (?setup_token=...)
   const urlParams = new URLSearchParams(window.location.search);
   const setupToken = urlParams.get('setup_token');
