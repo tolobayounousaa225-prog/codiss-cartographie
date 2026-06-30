@@ -1,7 +1,7 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$3T1glA21Ht5d1pzjt71ur.m7DLE2M7T83BkMP06qfeEQ5BuSbukF.",
+    "password_hash": "$2b$12$mrngFQLe2ih0hE0AZcS4SOs4nYrjMaA5SZpx0LH6zMnlGFmF.kMZW",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
     "role": "branch",
@@ -11,7 +11,7 @@
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$Jw8sRkkEpP1oNn.NhgreLe/ySk2yWjCe5b2UJyDZza12u2bRym77K",
+    "password_hash": "$2b$12$XE.Px3.R1Q7hMYAZsCKi/OX30bUUlcVE4pltTgEuUo75saWvRCJXS",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
     "role": "branch",
@@ -21,7 +21,7 @@
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$pIlHVwEdGLH0X1ClrqIlbOXHBXmZ20U8LaCX9K0yTkGUdbehryf6.",
+    "password_hash": "$2b$12$U/kJV8He5/AvCSVNde8rruGXwfIfZ4iPnsaGnW0961oK3SzxmgzWy",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
     "role": "branch",
