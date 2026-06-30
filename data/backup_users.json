@@ -1,7 +1,7 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$IVkLGQX947omoqKpE4ZJ3OS.4gX8NuyetnQ5.cixtYgoZFC6aj7Z.",
+    "password_hash": "$2b$12$XYdGeqhiTuQarEZ3Eg13.uVu6MhjcqDkvkcoBKj4NVNufaD9P9Fre",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
     "role": "branch",
@@ -11,7 +11,7 @@
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$wd0D7YPoBCmeSUTHctaBm.auetqOBTt6CeOZJURBux1P0l0XRVFiK",
+    "password_hash": "$2b$12$ctU9blsy67UM8Vob06vJa.lxYgciWOjNekRwqvQ3z.mRzG8nYbbse",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
     "role": "branch",
@@ -21,7 +21,7 @@
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$TBXn785rz6k7F5KmLP94e.P/1O4PsEnwMWCj0H9ODdP2excsUU8iG",
+    "password_hash": "$2b$12$JZVtwray05V5M.mIdjLY2OpvKdoYOOWofPQgQFOUFHaTC6dAl5Z8m",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
     "role": "branch",
@@ -35,16 +35,6 @@
     "full_name": "TOLOBA AYOUBA",
     "phone": "0576483606",
     "role": "branch",
-    "language": "fr",
-    "is_active": true,
-    "must_set_password": false
-  }
-  {
-    "email": "yayabakayoko@gmail.com",
-    "password_hash": "CODISS123",
-    "full_name": "yaya bakayoko",
-    "phone": "0576483606",
-    "role": "super admin",
     "language": "fr",
     "is_active": true,
     "must_set_password": false
