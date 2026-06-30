@@ -173,20 +173,30 @@ def _gh_api(method, payload=None):
         return None
 
 async def backup_users_to_github(db=None):
-    """Sauvegarde tous les utilisateurs non-superadmin sur GitHub (session propre)."""
+    """Sauvegarde tous les utilisateurs non-superadmin sur GitHub.
+    Si db est fourni, utilise la session existante. Sinon ouvre une nouvelle.
+    """
     if not _GH_TOKEN: return
     try:
-        async with AsyncSessionLocal() as db:
-            rows = (await db.execute(
+        async def _query(session):
+            rows = (await session.execute(
                 select(User).where(User.role != "superadmin").order_by(User.created_at)
             )).scalars().all()
-        users_data = [
-            {"email": u.email, "password_hash": u.password_hash,
-             "full_name": u.full_name, "phone": u.phone, "role": u.role,
-             "language": u.language or "fr", "is_active": u.is_active,
-             "must_set_password": bool(u.must_set_password)}
-            for u in rows
-        ]
+            return [
+                {"email": u.email, "password_hash": u.password_hash,
+                 "full_name": u.full_name, "phone": u.phone, "role": u.role,
+                 "language": u.language or "fr", "is_active": u.is_active,
+                 "must_set_password": bool(u.must_set_password)}
+                for u in rows
+            ]
+
+        if db is not None:
+            users_data = await _query(db)
+        else:
+            async with AsyncSessionLocal() as new_db:
+                users_data = await _query(new_db)
+
+        print(f"📋 Backup: {len(users_data)} utilisateurs trouvés en DB")
         encoded = base64.b64encode(
             _json.dumps(users_data, ensure_ascii=False, indent=2).encode()
         ).decode()
@@ -304,7 +314,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "sync-backup-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "session-passthrough-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
@@ -769,7 +779,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
-        await backup_users_to_github()
+        await backup_users_to_github(db=db)
         return {
             "id": u.id, "email": u.email, "full_name": u.full_name,
             "role": u.role, "is_active": u.is_active,
@@ -796,7 +806,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
-        await backup_users_to_github()
+        await backup_users_to_github(db=db)
         base_url = str(request.base_url).rstrip("/")
         setup_link = f"{base_url}/?setup_token={token}"
         email_sent = send_invitation_email(u.email, u.full_name, setup_link)
@@ -955,7 +965,7 @@ async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(ad
     if not user: raise HTTPException(404)
     await db.delete(user)
     await db.commit()
-    await backup_users_to_github()
+    await backup_users_to_github(db=db)
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════
