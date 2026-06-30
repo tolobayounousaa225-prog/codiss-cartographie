@@ -1,50 +1,40 @@
 """
-Base de données — supporte SQLite (local) ET PostgreSQL Neon/Render (prod)
-DATABASE_URL défini → PostgreSQL avec SSL
-Sinon → SQLite local
+Base de données — SQLite (local) ou PostgreSQL Neon/Render (prod)
 """
 import os
-import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 _raw_url = os.getenv("DATABASE_URL", "").strip()
 
 if _raw_url:
-    # Convertir postgres:// ou postgresql:// → postgresql+asyncpg://
+    # Neon/Render donnent postgresql:// ou postgres://
+    # asyncpg a besoin de postgresql+asyncpg://
     _url = _raw_url
-    if _url.startswith("postgres://"):
-        _url = "postgresql+asyncpg://" + _url[len("postgres://"):]
-    elif _url.startswith("postgresql://"):
-        _url = "postgresql+asyncpg://" + _url[len("postgresql://"):]
+    for prefix in ("postgres://", "postgresql://"):
+        if _url.startswith(prefix):
+            _url = "postgresql+asyncpg://" + _url[len(prefix):]
+            break
 
-    # Supprimer ?sslmode=... de l'URL (géré via connect_args)
-    if "?" in _url:
-        _url = _url.split("?")[0]
-
-    # Contexte SSL pour Neon (certificat serveur requis)
-    _ssl_ctx = ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = ssl.CERT_NONE  # Neon free tier
-
+    # Garder ?sslmode=require tel quel — asyncpg le gère nativement
+    # Juste s'assurer qu'on n'a pas de doublon asyncpg
     DATABASE_URL = _url
+    DB_MODE = "postgresql"
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        connect_args={"ssl": _ssl_ctx},
+        # Pas de pool_pre_ping sur free tier (évite crash au démarrage)
+        pool_size=2,
+        max_overflow=3,
     )
-    DB_MODE = "postgresql"
 else:
     DATABASE_URL = "sqlite+aiosqlite:///./codiss_local.db"
+    DB_MODE = "sqlite"
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
         connect_args={"check_same_thread": False},
     )
-    DB_MODE = "sqlite"
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
