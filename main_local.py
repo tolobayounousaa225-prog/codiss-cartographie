@@ -756,7 +756,7 @@ async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only))
     # Rapports des 6 derniers mois
     six_months_ago = datetime.utcnow().replace(day=1) - timedelta(days=150)
     rpt_rows = (await db.execute(
-        select(PresenceReport.submitted_at).where(PresenceReport.submitted_at >= six_months_ago)
+        select(PresenceReport.created_at).where(PresenceReport.created_at >= six_months_ago)
     )).scalars().all()
     monthly = {}
     for dt in rpt_rows:
@@ -1088,12 +1088,3 @@ async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
         return shown + "@" + parts[1]
     return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
 
-@app.post("/api/admin/users/{uid}/reset-password")
-async def admin_reset_password(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
-    """Réinitialise le mot de passe d'un utilisateur (admin uniquement)."""
-    u = await db.get(User, uid)
-    if not u: raise HTTPException(404)
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    await db.commit()
-    return {"ok": True, "full_name": u.full_name, "temp_password": temp}

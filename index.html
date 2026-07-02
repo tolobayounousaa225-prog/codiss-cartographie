@@ -209,9 +209,7 @@ body::before{
 .role-admin{background:rgba(255,145,0,.15);color:var(--orange);border:1px solid rgba(255,145,0,.3);}
 .role-branch{background:rgba(68,138,255,.15);color:var(--blue);border:1px solid rgba(68,138,255,.3);}
 .role-viewer{background:var(--bg4);color:var(--text3);border:1px solid var(--border);}
-.role-select-inline{background:var(--bg3);color:var(--text1);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:.78rem;cursor:pointer;outline:none;transition:border-color .2s;}
-.role-select-inline:hover{border-color:var(--blue);}
-.role-select-inline{background:var(--bg3);color:var(--text1);border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:.78rem;cursor:pointer;outline:none;}
+.role-select-inline{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:.78rem;cursor:pointer;outline:none;transition:border-color .2s;}
 .role-select-inline:hover{border-color:var(--blue);}
 
 .nav-section{padding:8px 0;}
@@ -715,7 +713,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
       </svg>
       <h1>Bienvenue sur CODISS</h1>
     </div>
-    <div id="setup-welcome-msg" style="background:rgba(0,230,118,.1);border:1px solid var(--green);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:.9rem;color:var(--text1);text-align:center;">Chargement…</div>
+    <div id="setup-welcome-msg" style="background:rgba(0,230,118,.1);border:1px solid var(--green);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:.9rem;color:var(--text);text-align:center;">Chargement…</div>
     <div id="setup-alert" class="alert" style="display:none;margin-bottom:14px;"></div>
     <div id="setup-form">
       <div class="form-group">
@@ -1936,7 +1934,7 @@ function renderCoverageList(coverage) {
         ${covered.map(r => {
           const lvlColor = r.coverage_level==='high' ? 'var(--green2)' : 'var(--orange)';
           return `<div style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.25);border-radius:20px;padding:4px 12px;font-size:.78rem;display:flex;align-items:center;gap:6px">
-            <span style="font-weight:600;color:var(--text1)">${STATE.lang==='fr'?r.name_fr:r.name_en}</span>
+            <span style="font-weight:600;color:var(--text)">${STATE.lang==='fr'?r.name_fr:r.name_en}</span>
             <span style="background:${lvlColor};color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem">${r.branch_count} br.</span>
           </div>`;
         }).join('')}
@@ -2770,7 +2768,7 @@ function renderUsersTable(users) {
             <button class="action-btn ${u.is_active?'red':'green'}" onclick="toggleUser('${u.id}')">
               ${u.is_active?(STATE.lang==='fr'?'Désactiver':'Disable'):(STATE.lang==='fr'?'Activer':'Enable')}
             </button>
-          `:'<span style="font-size:.75rem;color:var(--gray3);font-style:italic">Super Admin</span>'}
+          `:'<span style="font-size:.75rem;color:var(--text3);font-style:italic">Super Admin</span>'}
           <button class="action-btn orange" onclick="adminResetPassword('${u.id}','${u.full_name.replace(/'/g,String.fromCharCode(92,39))}')">
             ${STATE.lang==='fr'?'🔑 Réinitialiser':'🔑 Reset'}
           </button>

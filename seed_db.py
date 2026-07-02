@@ -10,7 +10,7 @@ import bcrypt as _bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_local import engine, Base, AsyncSessionLocal
-from models_local import User, Branch, BranchUser, Region, Notification
+from models_local import User, Branch, BranchUser, Region, Notification, Department
 
 def pwd_hash(p):
     return _bcrypt.hashpw(p.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
