@@ -2620,55 +2620,130 @@ async function doSelectBranch(branchId) {
   }
 }
 
+// ─── Sélecteur cascadant Région → Département pour le secrétaire ───────────
+let _regionsData = [];
+
 async function openChangeBranchPanel() {
   const panel = document.getElementById('change-branch-panel');
   if (!panel) return;
-  if (panel.style.display !== 'none') { panel.style.display='none'; return; }
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   panel.innerHTML = `
     <div class="panel" style="border:2px solid var(--orange2)">
-      <div class="panel-header">
+      <div class="panel-header" style="flex-wrap:wrap;gap:12px">
         <div>
-          <div class="panel-title" style="color:var(--orange)">${STATE.lang==='fr'?'🔄 Changer de branche':'🔄 Change Branch'}</div>
-          <div class="panel-subtitle">${STATE.lang==='fr'?'Sélectionnez une autre branche à laquelle vous rattacher.':'Select a different branch to link to.'}</div>
+          <div class="panel-title" style="color:var(--orange)">Choisir ma région et département</div>
+          <div class="panel-subtitle">Sélectionnez votre région puis votre département pour rejoindre la branche correspondante.</div>
         </div>
-        <input type="text" id="change-branch-search" placeholder="${STATE.lang==='fr'?'Rechercher…':'Search…'}"
-          oninput="filterChangeBranchList(this.value)"
-          style="padding:8px 14px;border:1.5px solid var(--gray2);border-radius:8px;font-size:.85rem;width:190px"/>
+        <button class="action-btn gray" style="font-size:.8rem" onclick="document.getElementById('change-branch-panel').style.display='none'">X Fermer</button>
       </div>
-      <div id="change-branch-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;max-height:400px;overflow-y:auto">
-        <div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3)">${t('loading')}</div>
+      <div style="display:flex;flex-direction:column;gap:16px;max-width:480px">
+        <div>
+          <label style="font-size:.82rem;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Etape 1 — Choisissez votre région</label>
+          <select id="cb-region-sel" onchange="onChangeBranchRegion()"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--gray2);border-radius:8px;font-size:.9rem;background:var(--bg2);color:var(--text1)">
+            <option value="">— Sélectionner une région —</option>
+          </select>
+        </div>
+        <div id="cb-dept-wrap" style="display:none">
+          <label style="font-size:.82rem;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Etape 2 — Choisissez votre département</label>
+          <select id="cb-dept-sel" onchange="onChangeBranchDept()"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--gray2);border-radius:8px;font-size:.9rem;background:var(--bg2);color:var(--text1)">
+            <option value="">— Sélectionner un département —</option>
+          </select>
+        </div>
+        <div id="cb-confirm-wrap" style="display:none">
+          <div id="cb-branch-preview" style="background:var(--bg2);border:1.5px solid var(--green2);border-radius:10px;padding:14px 16px;margin-bottom:12px"></div>
+          <button class="action-btn green" style="width:100%;padding:11px" onclick="confirmChangeBranch()">Confirmer mon rattachement</button>
+        </div>
+        <div id="cb-alert" class="alert" style="display:none"></div>
       </div>
     </div>`;
 
-  const branches = await api('GET', '/branches');
-  window._changeBranches = branches.filter(b => b.id !== STATE.myBranchId);
-  renderChangeBranchList(window._changeBranches);
+  if (!_regionsData.length) {
+    try {
+      _regionsData = await api('GET', '/map/regions-with-departments');
+    } catch(e) {
+      const a = document.getElementById('cb-alert');
+      a.className = 'alert alert-error'; a.textContent = e.message; a.style.display = 'block';
+      return;
+    }
+  }
+  const sel = document.getElementById('cb-region-sel');
+  _regionsData.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.id; o.textContent = r.name_fr; sel.appendChild(o);
+  });
+  if (STATE.user && STATE.user.region_id) {
+    sel.value = STATE.user.region_id;
+    onChangeBranchRegion();
+  }
 }
 
-function renderChangeBranchList(branches) {
-  const list = document.getElementById('change-branch-list');
-  if (!list) return;
-  list.innerHTML = branches.map(b => `
-    <div onclick="confirmSelectBranch('${b.id}','${b.name.replace(/'/g,"\\'")}','${b.city}')"
-      style="background:var(--gray);border:1.5px solid var(--gray2);border-radius:8px;padding:12px 14px;cursor:pointer;transition:.15s"
-      onmouseover="this.style.background='var(--green3)';this.style.borderColor='var(--green2)'"
-      onmouseout="this.style.background='var(--gray)';this.style.borderColor='var(--gray2)'">
-      <div style="font-weight:700;font-size:.88rem">${b.name}</div>
-      <div style="font-size:.78rem;color:var(--text2)">📍 ${b.city} — <code style="font-size:.72rem">${b.code}</code></div>
-      <div style="font-size:.75rem;color:var(--text3);margin-top:4px">👥 ${b.member_count||0} membres · <span class="badge-status badge-${b.status}" style="font-size:.68rem">${t('status_'+b.status)||b.status}</span></div>
-    </div>`).join('');
+function onChangeBranchRegion() {
+  const regionId = parseInt(document.getElementById('cb-region-sel').value);
+  const deptWrap = document.getElementById('cb-dept-wrap');
+  const deptSel  = document.getElementById('cb-dept-sel');
+  const confWrap = document.getElementById('cb-confirm-wrap');
+  confWrap.style.display = 'none';
+  if (!regionId) { deptWrap.style.display = 'none'; return; }
+  const region = _regionsData.find(r => r.id === regionId);
+  if (!region) return;
+  deptSel.innerHTML = '<option value="">— Sélectionner un département —</option>';
+  (region.departments || []).forEach(d => {
+    const o = document.createElement('option'); o.value = d.id; o.textContent = d.name_fr; deptSel.appendChild(o);
+  });
+  deptWrap.style.display = 'block';
+  if (STATE.user && STATE.user.department_id) {
+    const match = (region.departments || []).find(d => d.id === STATE.user.department_id);
+    if (match) { deptSel.value = match.id; onChangeBranchDept(); }
+  }
 }
 
-function filterChangeBranchList(q) {
-  if (!window._changeBranches) return;
-  const filtered = window._changeBranches.filter(b =>
-    b.name.toLowerCase().includes(q.toLowerCase()) ||
-    b.city.toLowerCase().includes(q.toLowerCase()) ||
-    b.code.toLowerCase().includes(q.toLowerCase())
-  );
-  renderChangeBranchList(filtered);
+async function onChangeBranchDept() {
+  const deptId   = parseInt(document.getElementById('cb-dept-sel').value);
+  const confWrap = document.getElementById('cb-confirm-wrap');
+  const preview  = document.getElementById('cb-branch-preview');
+  const alertEl  = document.getElementById('cb-alert');
+  alertEl.style.display = 'none'; confWrap.style.display = 'none';
+  if (!deptId) return;
+  try {
+    const branches = await api('GET', '/admin/branches');
+    const branch = branches.find(b => b.department_id === deptId);
+    if (!branch) {
+      alertEl.className = 'alert alert-error';
+      alertEl.textContent = 'Aucune branche pour ce département.';
+      alertEl.style.display = 'block'; return;
+    }
+    window._selectedBranchForChange = branch;
+    const sc = branch.status === 'active' ? '#10b981' : '#f59e0b';
+    const secInfo = branch.secretaire
+      ? `<div style="font-size:.78rem;color:#f59e0b;margin-top:6px">Secretaire actuel : ${branch.secretaire.name}</div>`
+      : `<div style="font-size:.78rem;color:#10b981;margin-top:6px">Aucun secretaire - branche disponible</div>`;
+    preview.innerHTML = `
+      <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">${branch.dept_name || branch.name}</div>
+      <div style="font-size:.8rem;color:var(--text2)">${branch.region_name} - <code style="font-size:.75rem">${branch.code}</code></div>
+      <div style="font-size:.78rem;color:var(--text3);margin-top:4px">${branch.address || ''}</div>
+      <span style="background:${sc}20;color:${sc};padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:600;margin-top:6px;display:inline-block">
+        ${branch.status === 'active' ? 'Active' : 'En attente'}
+      </span>${secInfo}`;
+    confWrap.style.display = 'block';
+  } catch(e) {
+    alertEl.className = 'alert alert-error'; alertEl.textContent = e.message; alertEl.style.display = 'block';
+  }
 }
+
+async function confirmChangeBranch() {
+  const branch = window._selectedBranchForChange;
+  if (!branch) return;
+  const msg = 'Confirmer votre rattachement a : ' + (branch.dept_name || branch.name) + ' (' + branch.region_name + ') ?';
+  if (!confirm(msg)) return;
+  await doSelectBranch(branch.id);
+  document.getElementById('change-branch-panel').style.display = 'none';
+}
+
+function renderChangeBranchList() {}
+function filterChangeBranchList() {}
 
 function openMyBranchEditModal() {
   const b = STATE.myBranch;
