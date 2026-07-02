@@ -1,7 +1,7 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$XmoWvQR7.Uq1tW3VzIYRs.z796Wa04m4y5edPgqveAsXhQMPm8Ji6",
+    "password_hash": "$2b$12$niNYR/ykI8U4ks5aXC/34exlPih1KGSutlqxipQf2xkCeLZLvS9xW",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
@@ -14,7 +14,7 @@
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$4U2x/dW0WuTaicvOWl9ZEOXiIeMSV9QVPS.O8ZbG2ZOx47A9T1cR2",
+    "password_hash": "$2b$12$ITZX8A3Ad3mqpPLPN4G9QeEisgSGzoNfXqyiWqex0AOhvu0vLONyi",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
@@ -27,7 +27,7 @@
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$FRz5gJfirCmigZdFGPOlzOeG2N11qMb0U0AaQK5LSIQTMz0mez4T2",
+    "password_hash": "$2b$12$CGklRvrHNHh8pWbpcfa8cO4TBvyE.q7sKgRcNhTKDRFROL3DQrgHS",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
@@ -89,5 +89,18 @@
     "must_set_password": false,
     "region_id": 1,
     "department_id": 11
+  },
+  {
+    "email": "ali12@gmail.com",
+    "password_hash": "$2b$12$k785rzj1eQtnbNgGq.LBG.qCgCHnBDYzvM4H.adb6TwEsSZpOJxpG",
+    "plain_password": null,
+    "full_name": "ALI COULIBALY",
+    "phone": "0787005633",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 17,
+    "department_id": 61
   }
 ]
