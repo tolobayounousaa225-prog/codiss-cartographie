@@ -153,6 +153,37 @@ async def lifespan(app: FastAPI):
                 pass  # colonne déjà présente
     # 3. Auto-seed si la base est vide
     await auto_seed()
+    # 4. Auto-créer les branches manquantes (1 par département)
+    try:
+        async with AsyncSessionLocal() as db:
+            depts = (await db.execute(select(Department))).scalars().all()
+            regions = {r.id: r for r in (await db.execute(select(Region))).scalars().all()}
+            existing_dept_ids = {
+                b.department_id
+                for b in (await db.execute(select(Branch))).scalars().all()
+                if b.department_id
+            }
+            created = 0
+            for dept in depts:
+                if dept.id not in existing_dept_ids:
+                    reg = regions.get(dept.region_id)
+                    db.add(Branch(
+                        code=f"CODISS-{dept.code}",
+                        name=f"CODISS {dept.name_fr}",
+                        city=dept.name_fr,
+                        region_id=dept.region_id,
+                        department_id=dept.id,
+                        status="pending",
+                        address=f"{dept.name_fr}, {reg.name_fr if reg else ''}, Cote d'Ivoire",
+                    ))
+                    created += 1
+            if created:
+                await db.commit()
+                print(f"✅ {created} branches auto-créées depuis les départements")
+            else:
+                print("✅ Toutes les branches existent déjà")
+    except Exception as e:
+        print(f"⚠️  Auto-branches erreur : {type(e).__name__}: {e}")
     yield
     await engine.dispose()
 
@@ -518,6 +549,31 @@ async def assign_user(bid: str, user_id: str, role: str = "secretary", db: Async
     db.add(bu)
     await db.commit()
     return {"ok": True, "user": u.full_name, "branch": b.name}
+
+@app.get("/api/admin/branches")
+async def list_branches_admin(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Liste enrichie des branches pour l'admin (région, département, secrétaire)."""
+    branches = (await db.execute(select(Branch).order_by(Branch.region_id, Branch.name))).scalars().all()
+    regions_map  = {r.id: r.name_fr for r in (await db.execute(select(Region))).scalars().all()}
+    depts_map    = {d.id: d.name_fr for d in (await db.execute(select(Department))).scalars().all()}
+    # Charger les secrétaires associés
+    bu_rows = (await db.execute(select(BranchUser))).scalars().all()
+    users_map = {u.id: u for u in (await db.execute(select(User))).scalars().all()}
+    secretaire_by_branch = {}
+    for bu in bu_rows:
+        if bu.role == "secretary":
+            u = users_map.get(bu.user_id)
+            if u:
+                secretaire_by_branch[bu.branch_id] = {"name": u.full_name, "email": u.email}
+    result = []
+    for b in branches:
+        d = _branch_dict(b)
+        d["region_name"]    = regions_map.get(b.region_id, "")
+        d["dept_name"]      = depts_map.get(b.department_id, "")
+        d["secretaire"]     = secretaire_by_branch.get(b.id)
+        d["notes"]          = b.notes
+        result.append(d)
+    return result
 
 def _branch_dict(b):
     return {
@@ -910,6 +966,26 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
              "department_name": depts_map.get(u.department_id) if u.department_id else None}
             for u in users]
 
+async def _auto_link_branch(u, db: AsyncSession):
+    """Si le user est secrétaire (role='branch') avec un département défini,
+    lie automatiquement à la branche de ce département et active la branche."""
+    if u.role != "branch" or not u.department_id:
+        return
+    branch = (await db.execute(
+        select(Branch).where(Branch.department_id == u.department_id)
+    )).scalar_one_or_none()
+    if not branch:
+        return
+    # Supprimer toute ancienne liaison de cet utilisateur
+    old_link = (await db.execute(
+        select(BranchUser).where(BranchUser.user_id == u.id)
+    )).scalar_one_or_none()
+    if old_link:
+        await db.delete(old_link)
+    db.add(BranchUser(user_id=u.id, branch_id=branch.id, role="secretary"))
+    branch.status = "active"
+    await db.commit()
+
 @app.post("/api/admin/users", status_code=201)
 async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     ex = await db.execute(select(User).where(User.email == data["email"]))
@@ -932,6 +1008,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
+        await _auto_link_branch(u, db)
         await backup_users_to_github(db=db)
         return {
             "id": u.id, "email": u.email, "full_name": u.full_name,
@@ -961,6 +1038,7 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
         db.add(u)
         await db.commit()
         await db.refresh(u)
+        await _auto_link_branch(u, db)
         await backup_users_to_github(db=db)
         base_url = str(request.base_url).rstrip("/")
         setup_link = f"{base_url}/?setup_token={token}"
@@ -1030,6 +1108,7 @@ async def update_user(uid: str, data: dict, db: AsyncSession = Depends(get_db), 
     if "department_id" in data:
         u.department_id = data.get("department_id") or None
     await db.commit()
+    await _auto_link_branch(u, db)
     await backup_users_to_github(db=db)
     return {"ok": True, "message": "Utilisateur mis à jour"}
 
@@ -1154,77 +1233,4 @@ async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(
     return {"message": f"{b.name} rejetée"}
 
 @app.delete("/api/admin/users/{uid}")
-async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
-    user = await db.get(User, uid)
-    if not user: raise HTTPException(404)
-    await db.delete(user)
-    await db.commit()
-    await backup_users_to_github(db=db)
-    return {"ok": True}
-
-# ══════════════════════════════════════════════════════
-# AUTO-SÉLECTION DE BRANCHE (par le secrétaire lui-même)
-# ══════════════════════════════════════════════════════
-@app.post("/api/auth/me/select-branch")
-async def self_select_branch(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    if u.role != "branch":
-        raise HTTPException(403, "Réservé aux secrétaires de branche")
-    branch_id = data.get("branch_id")
-    if not branch_id:
-        raise HTTPException(400, "branch_id requis")
-    b = await db.get(Branch, branch_id)
-    if not b:
-        raise HTTPException(404, "Branche introuvable")
-    existing = await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))
-    old = existing.scalar_one_or_none()
-    if old:
-        await db.delete(old)
-        await db.flush()
-    bu = BranchUser(user_id=u.id, branch_id=branch_id, role="secretary")
-    db.add(bu)
-    await db.commit()
-    return {"ok": True, "branch": _branch_dict(b)}
-
-# ══════════════════════════════════════════════════════
-# RÉCUPÉRATION D'ACCÈS
-# ══════════════════════════════════════════════════════
-def gen_temp_password(length=10):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choices(chars, k=length))
-
-@app.post("/api/auth/forgot-password")
-async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
-    """Génère un mot de passe temporaire — affiche sur écran (pas d'email en local)."""
-    email = (data.get("email") or "").strip().lower()
-    if not email:
-        raise HTTPException(400, "Email requis")
-    r = await db.execute(select(User).where(User.email == email))
-    u = r.scalar_one_or_none()
-    if not u:
-        raise HTTPException(404, "Aucun compte trouvé pour cet email.")
-    temp = gen_temp_password()
-    u.password_hash = hash_password(temp)
-    u.plain_password = temp
-    await db.commit()
-    return {"ok": True, "full_name": u.full_name, "temp_password": temp,
-            "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."}
-
-@app.post("/api/auth/find-by-name")
-async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
-    """Retrouve un email à partir d'un nom complet (partiel)."""
-    name = (data.get("name") or "").strip()
-    if len(name) < 3:
-        raise HTTPException(400, "Entrez au moins 3 caractères")
-    r = await db.execute(
-        select(User).where(User.full_name.ilike(f"%{name}%")).limit(5)
-    )
-    users = r.scalars().all()
-    if not users:
-        raise HTTPException(404, "Aucun compte trouvé pour ce nom.")
-    def mask_email(email):
-        parts = email.split("@")
-        local = parts[0]
-        shown = local[:2] + "*" * max(2, len(local)-4) + local[-2:] if len(local) > 4 else local[:1] + "***"
-        return shown + "@" + parts[1]
-    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
-
+async def dele

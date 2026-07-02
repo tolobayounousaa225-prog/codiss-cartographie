@@ -1351,37 +1351,27 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
         <div class="panel">
           <div class="panel-header">
             <div>
-              <div class="panel-title" data-fr="Gestion des branches" data-ar="إدارة الفروع">Gestion des branches</div>
-              <div class="panel-subtitle" data-fr="Toutes les représentations locales CODISS" data-ar="جميع الفروع المحلية لـ CODISS">Toutes les représentations locales CODISS</div>
+              <div class="panel-title">Branches CODISS</div>
+              <div class="panel-subtitle">Générées automatiquement par région et département</div>
             </div>
             <div class="btn-group">
-              <select id="branch-filter-status" onchange="loadBranches()" style="padding:7px 12px;border:1.5px solid var(--gray2);border-radius:6px;font-size:.82rem;">
-                <option value="" data-fr="Tous les statuts" data-ar="جميع الحالات">Tous les statuts</option>
-                <option value="active" data-fr="Actives" data-ar="نشط">Actives</option>
-                <option value="pending" data-fr="En attente" data-ar="قيد الانتظار">En attente</option>
-                <option value="suspended" data-fr="Suspendues" data-ar="موقوف">Suspendues</option>
+              <input id="branch-search" type="text" placeholder="Rechercher..." oninput="filterBranchCards()" style="padding:7px 12px;border:1.5px solid var(--gray2);border-radius:6px;font-size:.82rem;background:var(--bg2);color:var(--text1)">
+              <select id="branch-filter-region" onchange="filterBranchCards()" style="padding:7px 12px;border:1.5px solid var(--gray2);border-radius:6px;font-size:.82rem;background:var(--bg2);color:var(--text1)">
+                <option value="">Toutes les régions</option>
+              </select>
+              <select id="branch-filter-status" onchange="filterBranchCards()" style="padding:7px 12px;border:1.5px solid var(--gray2);border-radius:6px;font-size:.82rem;background:var(--bg2);color:var(--text1)">
+                <option value="">Tous les statuts</option>
+                <option value="active">Actives</option>
+                <option value="pending">En attente</option>
               </select>
               <button class="btn-pdf" onclick="exportPDF('branches')">
                 <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5z"/></svg>
-                <span data-fr="Exporter PDF" data-ar="تصدير PDF">Exporter PDF</span>
+                <span>Exporter PDF</span>
               </button>
-              <button class="action-btn green" onclick="openNewBranchModal()" data-fr="+ Nouvelle branche" data-ar="+ فرع جديد">+ Nouvelle branche</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr>
-                <th data-fr="Code" data-ar="الرمز">Code</th>
-                <th data-fr="Nom / Ville" data-ar="الاسم / المدينة">Nom / Ville</th>
-                <th data-fr="Président" data-ar="الرئيس">Président</th>
-                <th data-fr="Membres" data-ar="الأعضاء">Membres</th>
-                <th data-fr="Statut" data-ar="الحالة">Statut</th>
-                <th data-fr="Vérifié" data-ar="مُتحقَّق منه">Vérifié</th>
-                <th data-fr="Actions" data-ar="الإجراءات">Actions</th>
-              </tr></thead>
-              <tbody id="branches-tbody"></tbody>
-            </table>
-          </div>
+          <div id="branches-stats-bar" style="display:flex;gap:12px;flex-wrap:wrap;padding:0 0 14px 0"></div>
+          <div id="branches-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;min-height:120px"></div>
         </div>
       </div>
 
@@ -1668,6 +1658,31 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="action-btn green" onclick="saveBranch()" data-fr="Créer la branche" data-ar="إنشاء الفرع">Créer la branche</button>
       <button class="action-btn gray" onclick="closeModal('modal-branch')" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Modifier une branche ═══ -->
+<div class="modal-overlay modal-hidden" id="modal-edit-branch">
+  <div class="modal" style="max-width:560px">
+    <h2>Modifier la branche</h2>
+    <input type="hidden" id="eb-id">
+    <div class="form-grid">
+      <div class="form-row full"><label>Nom complet</label><input type="text" id="eb-name"/></div>
+      <div class="form-row full"><label>Adresse</label><input type="text" id="eb-address"/></div>
+      <div class="form-row"><label>Président — Nom</label><input type="text" id="eb-pres-name"/></div>
+      <div class="form-row"><label>Président — Téléphone</label><input type="text" id="eb-pres-phone"/></div>
+      <div class="form-row full"><label>Email du président</label><input type="email" id="eb-pres-email"/></div>
+      <div class="form-row"><label>Nombre de membres</label><input type="number" id="eb-members" min="0"/></div>
+      <div class="form-row"><label>Date de fondation</label><input type="date" id="eb-founded"/></div>
+      <div class="form-row"><label>Latitude GPS</label><input type="number" id="eb-lat" step="0.000001"/></div>
+      <div class="form-row"><label>Longitude GPS</label><input type="number" id="eb-lng" step="0.000001"/></div>
+      <div class="form-row full"><label>Notes</label><textarea id="eb-notes" rows="3" style="width:100%;border:1.5px solid var(--gray2);border-radius:6px;padding:8px;background:var(--bg2);color:var(--text1);resize:vertical"></textarea></div>
+    </div>
+    <div id="edit-branch-alert" class="alert" style="display:none;margin-top:12px"></div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="action-btn green" onclick="saveEditBranch()">Enregistrer</button>
+      <button class="action-btn gray" onclick="closeModal('modal-edit-branch')">Annuler</button>
     </div>
   </div>
 </div>
@@ -2772,66 +2787,148 @@ async function showReportDetail(id) {
 // ═══════════════════════════════════════════════════════
 // ADMIN: BRANCHES
 // ═══════════════════════════════════════════════════════
+let _allBranchesCached = [];
+
 async function loadBranches() {
-  const tbody  = document.getElementById('branches-tbody');
-  const filter = document.getElementById('branch-filter-status').value;
-  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">${t('loading')}</td></tr>`;
+  const grid = document.getElementById('branches-grid');
+  const statsBar = document.getElementById('branches-stats-bar');
+  grid.innerHTML = Array(6).fill(`<div style="background:var(--bg2);border-radius:10px;padding:16px;min-height:140px"><div class="skeleton" style="height:14px;width:60%;border-radius:4px;margin-bottom:10px"></div><div class="skeleton" style="height:10px;width:80%;border-radius:4px;margin-bottom:8px"></div><div class="skeleton" style="height:10px;width:50%;border-radius:4px"></div></div>`).join('');
   try {
-    const branches = await api('GET', '/branches' + (filter ? `?status=${filter}` : ''));
-    if (!branches||!branches.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; return; }
-    tbody.innerHTML = branches.map(b => `
-      <tr>
-        <td><strong style="font-family:monospace">${b.code}</strong></td>
-        <td><div style="font-weight:600">${b.name}</div><div style="font-size:.78rem;color:var(--text3)">📍 ${b.city}</div></td>
-        <td>${b.president_name||'—'}</td>
-        <td style="text-align:center"><strong>${b.member_count||0}</strong></td>
-        <td><span class="badge-status badge-${b.status}">${t('status_'+b.status)||b.status}</span></td>
-        <td>${b.is_verified?'<span class="badge-status badge-verified">✓ Vérifié</span>':'<span class="badge-status badge-pending">Non vérifié</span>'}</td>
-        <td>
-          <div class="btn-group">
-            ${!b.is_verified&&b.status!=='rejected'?`<button class="action-btn green" onclick="verifyBranch('${b.id}','${b.name}')" data-fr="Vérifier" data-ar="تحقق">Vérifier</button>`:''}
-            ${b.status==='pending'?`<button class="action-btn red" onclick="rejectBranch('${b.id}','${b.name}')" data-fr="Rejeter" data-ar="رفض">Rejeter</button>`:''}
+    _allBranchesCached = await api('GET', '/admin/branches') || [];
+    // Remplir filtre régions
+    const regSel = document.getElementById('branch-filter-region');
+    if (regSel && regSel.options.length === 1) {
+      const regions = [...new Set(_allBranchesCached.map(b => b.region_name).filter(Boolean))].sort();
+      regions.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; regSel.appendChild(o); });
+    }
+    // Barre stats
+    const total  = _allBranchesCached.length;
+    const active = _allBranchesCached.filter(b => b.status === 'active').length;
+    const withSec = _allBranchesCached.filter(b => b.secretaire).length;
+    if (statsBar) statsBar.innerHTML = [
+      [`${total}`, 'Total branches', '#3b82f6'],
+      [`${active}`, 'Actives', '#10b981'],
+      [`${total - active}`, 'En attente', '#f59e0b'],
+      [`${withSec}`, 'Avec secrétaire', '#8b5cf6'],
+    ].map(([n, l, c]) => `<div style="background:var(--bg2);border-radius:8px;padding:10px 16px;border-left:3px solid ${c};min-width:110px"><div style="font-size:1.4rem;font-weight:700;color:${c}">${n}</div><div style="font-size:.75rem;color:var(--text3)">${l}</div></div>`).join('');
+    filterBranchCards();
+  } catch(e) {
+    grid.innerHTML = `<div style="color:var(--red);padding:20px;grid-column:1/-1">${e.message}</div>`;
+  }
+}
+
+function filterBranchCards() {
+  const grid    = document.getElementById('branches-grid');
+  const search  = (document.getElementById('branch-search')?.value || '').toLowerCase();
+  const region  = document.getElementById('branch-filter-region')?.value || '';
+  const status  = document.getElementById('branch-filter-status')?.value || '';
+  const filtered = _allBranchesCached.filter(b => {
+    if (region && b.region_name !== region) return false;
+    if (status && b.status !== status) return false;
+    if (search && !(b.name.toLowerCase().includes(search) || (b.dept_name||'').toLowerCase().includes(search) || (b.city||'').toLowerCase().includes(search) || (b.president_name||'').toLowerCase().includes(search))) return false;
+    return true;
+  });
+  if (!filtered.length) {
+    grid.innerHTML = `<div style="color:var(--text3);padding:30px;text-align:center;grid-column:1/-1">Aucune branche correspondante</div>`;
+    return;
+  }
+  // Grouper par région
+  const byRegion = {};
+  filtered.forEach(b => {
+    const r = b.region_name || 'Sans région';
+    if (!byRegion[r]) byRegion[r] = [];
+    byRegion[r].push(b);
+  });
+  let html = '';
+  for (const [reg, branches] of Object.entries(byRegion).sort()) {
+    html += `<div style="grid-column:1/-1;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);padding:6px 0 2px;border-bottom:1px solid var(--gray2);margin-bottom:2px">🗺 ${reg}</div>`;
+    branches.forEach(b => {
+      const secBadge = b.secretaire
+        ? `<span style="background:#8b5cf620;color:#8b5cf6;padding:2px 8px;border-radius:10px;font-size:.72rem">👤 ${b.secretaire.name}</span>`
+        : `<span style="background:var(--gray2);color:var(--text3);padding:2px 8px;border-radius:10px;font-size:.72rem">Pas de secrétaire</span>`;
+      const statusColor = b.status === 'active' ? '#10b981' : b.status === 'suspended' ? '#ef4444' : '#f59e0b';
+      const statusLabel = b.status === 'active' ? 'Active' : b.status === 'suspended' ? 'Suspendue' : 'En attente';
+      html += `<div style="background:var(--bg2);border-radius:10px;padding:14px 16px;border:1.5px solid var(--gray2);display:flex;flex-direction:column;gap:8px;transition:border-color .2s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--gray2)'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:.9rem;color:var(--text1)">${b.dept_name || b.city}</div>
+            <div style="font-size:.75rem;color:var(--text3);font-family:monospace">${b.code}</div>
           </div>
-        </td>
-      </tr>`).join('');
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">${e.message}</td></tr>`; }
+          <span style="background:${statusColor}20;color:${statusColor};padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:600;white-space:nowrap">${statusLabel}</span>
+        </div>
+        <div style="font-size:.78rem;color:var(--text3)">${b.address || '—'}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${secBadge}
+          ${b.president_name ? `<span style="background:var(--gray2);color:var(--text2);padding:2px 8px;border-radius:10px;font-size:.72rem">🏅 ${b.president_name}</span>` : ''}
+          ${b.member_count ? `<span style="background:var(--gray2);color:var(--text2);padding:2px 8px;border-radius:10px;font-size:.72rem">👥 ${b.member_count}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button class="action-btn" style="font-size:.75rem;padding:4px 10px" onclick="openEditBranchModal(${JSON.stringify(b).replace(/"/g,'&quot;')})">✏️ Modifier</button>
+          ${!b.is_verified && b.status !== 'rejected' ? `<button class="action-btn green" style="font-size:.75rem;padding:4px 10px" onclick="verifyBranch('${b.id}','${b.dept_name||b.name}')">✓ Vérifier</button>` : ''}
+          ${b.status === 'active' ? `<button class="action-btn red" style="font-size:.75rem;padding:4px 10px" onclick="rejectBranch('${b.id}','${b.dept_name||b.name}')">✕ Suspendre</button>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+  grid.innerHTML = html;
+}
+
+function openEditBranchModal(b) {
+  document.getElementById('eb-id').value          = b.id;
+  document.getElementById('eb-name').value        = b.name || '';
+  document.getElementById('eb-address').value     = b.address || '';
+  document.getElementById('eb-pres-name').value   = b.president_name || '';
+  document.getElementById('eb-pres-phone').value  = b.president_phone || '';
+  document.getElementById('eb-pres-email').value  = b.president_email || '';
+  document.getElementById('eb-members').value     = b.member_count || 0;
+  document.getElementById('eb-founded').value     = b.founded_date || '';
+  document.getElementById('eb-lat').value         = b.latitude || '';
+  document.getElementById('eb-lng').value         = b.longitude || '';
+  document.getElementById('eb-notes').value       = b.notes || '';
+  document.getElementById('edit-branch-alert').style.display = 'none';
+  document.getElementById('modal-edit-branch').classList.remove('modal-hidden');
+}
+
+async function saveEditBranch() {
+  const alertEl = document.getElementById('edit-branch-alert');
+  const id = document.getElementById('eb-id').value;
+  const payload = {
+    name:            document.getElementById('eb-name').value.trim() || undefined,
+    address:         document.getElementById('eb-address').value.trim() || null,
+    president_name:  document.getElementById('eb-pres-name').value.trim() || null,
+    president_phone: document.getElementById('eb-pres-phone').value.trim() || null,
+    president_email: document.getElementById('eb-pres-email').value.trim() || null,
+    member_count:    parseInt(document.getElementById('eb-members').value) || 0,
+    founded_date:    document.getElementById('eb-founded').value || null,
+    latitude:        parseFloat(document.getElementById('eb-lat').value) || null,
+    longitude:       parseFloat(document.getElementById('eb-lng').value) || null,
+    notes:           document.getElementById('eb-notes').value.trim() || null,
+  };
+  try {
+    await api('PATCH', `/branches/${id}`, payload);
+    closeModal('modal-edit-branch');
+    showToast('Branche mise à jour', 'success');
+    loadBranches();
+  } catch(e) { showAlert(alertEl, 'error', e.message); }
 }
 
 async function verifyBranch(id, name) {
-  if (!confirm(t('confirm_verify') + `\n${name}`)) return;
-  try { await api('POST', `/branches/${id}/verify`); loadBranches(); loadDashboard(); }
-  catch(e) { alert(e.message); }
+  if (!confirm(`Vérifier et activer la branche :\n${name}`)) return;
+  try { await api('POST', `/branches/${id}/verify`); showToast('Branche activée', 'success'); loadBranches(); loadDashboard(); }
+  catch(e) { showToast(e.message, 'error'); }
 }
 
 async function rejectBranch(id, name) {
-  if (!confirm(t('confirm_reject') + `\n${name}`)) return;
-  try { await api('POST', `/branches/${id}/reject`); loadBranches(); loadDashboard(); }
-  catch(e) { alert(e.message); }
+  if (!confirm(`Suspendre la branche :\n${name}`)) return;
+  try { await api('POST', `/branches/${id}/reject`); showToast('Branche suspendue', 'warning'); loadBranches(); loadDashboard(); }
+  catch(e) { showToast(e.message, 'error'); }
 }
 
-function openNewBranchModal() { document.getElementById('modal-branch').classList.remove('modal-hidden'); }
+function openNewBranchModal() { /* désactivé — branches auto-générées */ }
 
 async function saveBranch() {
-  const alertEl = document.getElementById('branch-modal-alert');
-  const payload = {
-    code:           document.getElementById('b-code').value.trim().toUpperCase(),
-    name:           document.getElementById('b-name').value.trim(),
-    city:           document.getElementById('b-city').value.trim(),
-    address:        document.getElementById('b-address').value.trim(),
-    president_name: document.getElementById('b-pres-name').value.trim(),
-    president_phone:document.getElementById('b-pres-phone').value.trim(),
-    member_count:   parseInt(document.getElementById('b-members').value)||0,
-    founded_date:   document.getElementById('b-founded').value||null,
-  };
-  if (!payload.code || !payload.name || !payload.city) {
-    showAlert(alertEl,'error', STATE.lang==='fr'?'Code, nom et ville sont obligatoires.':'Code, name and city are required.');
-    return;
-  }
-  try {
-    await api('POST', '/branches', payload);
-    closeModal('modal-branch');
-    loadBranches();
-  } catch(e) { showAlert(alertEl,'error', e.message); }
+  // Conservé pour compatibilité ascendante
+  closeModal('modal-branch');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -4275,136 +4372,4 @@ function closeMapPanel() {
   if (STATE.map) setTimeout(() => STATE.map.invalidateSize(), 320);
 }
 
-// ══════════════════════════════════════════════════════════════
-// FIX DASHBOARD VIEWER
-// ══════════════════════════════════════════════════════════════
-async function loadViewerDashboard() {
-  try {
-    const stats = await api('GET', '/map/stats');
-    const setEl = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-    setEl('st-total',    stats.total_branches);
-    setEl('st-active',   stats.active_branches);
-    setEl('st-pending',  stats.pending_branches);
-    setEl('st-regions',  `${stats.covered_regions}/${stats.total_regions}`);
-    setEl('st-coverage', stats.coverage_pct + '%');
-    // Cacher les panels admin
-    ['secretaire-activity-panel','dept-coverage-panel','charts-row','online-users-panel'].forEach(id => {
-      const el = document.getElementById(id); if(el) el.style.display='none';
-    });
-    try {
-      const coverage = await api('GET', '/map/coverage-summary');
-      renderCoverageList(coverage);
-    } catch(e) {}
-  } catch(e) { console.error('loadViewerDashboard:', e); }
-}
-
-// ══════════════════════════════════════════════════════════════
-// FIX PROFILE SECRÉTAIRE (afficher région/dept)
-// ══════════════════════════════════════════════════════════════
-const _origLoadProfile = loadProfile;
-loadProfile = async function() {
-  _origLoadProfile();
-  const u = STATE.user;
-  const geoPanel = document.getElementById('profile-geo-panel');
-  if (u.role === 'branch' && geoPanel) {
-    geoPanel.style.display = 'block';
-    try {
-      const me = await api('GET', '/auth/me');
-      if (me) {
-        const regEl  = document.getElementById('profile-region');
-        const deptEl = document.getElementById('profile-dept');
-        if (regEl)  regEl.textContent  = me.region_name  || '—';
-        if (deptEl) deptEl.textContent = me.department_name || 'Non assigné';
-      }
-    } catch(e) {}
-  }
-};
-
-// ══════════════════════════════════════════════════════════════
-// FIX DASHBOARD : appel viewer si rôle viewer
-// ══════════════════════════════════════════════════════════════
-const _origLoadDashboard = loadDashboard;
-loadDashboard = async function() {
-  if (STATE.user && STATE.user.role === 'viewer') {
-    return loadViewerDashboard();
-  }
-  // Admin/superadmin : afficher panel activité secrétaires
-  const actPanel = document.getElementById('secretaire-activity-panel');
-  if (actPanel) { actPanel.style.display = 'block'; loadSecretaireActivity(); }
-  return _origLoadDashboard();
-};
-
-// ══════════════════════════════════════════════════════════════
-// FIX MAP : ouvrir side panel au clic sur marker
-// ══════════════════════════════════════════════════════════════
-const _origLoadMapPoints = loadMapPoints;
-loadMapPoints = async function() {
-  await _origLoadMapPoints();
-  // Re-binder les markers pour ouvrir le panel
-  if (STATE.markersLayer && window._mapBranchData) {
-    STATE.markersLayer.clearLayers();
-    window._mapBranchData.forEach(p => {
-      if (!p.latitude || !p.longitude) return;
-      const colors = { active:'#00c853', pending:'#ff9100', suspended:'#ff1744', rejected:'#ff1744' };
-      const m = L.circleMarker([p.latitude, p.longitude], {
-        radius: 8, fillColor: colors[p.status] || '#888',
-        color: '#fff', weight: 2, opacity: 1, fillOpacity: .85
-      });
-      m.on('click', () => openMapPanel(p));
-      m.bindTooltip(p.name, { direction:'top', offset:[0,-8] });
-      STATE.markersLayer.addLayer(m);
-    });
-  }
-};
-</script>
-
-<!-- ══ MODALE INACTIVITÉ ══════════════════════════════════════════ -->
-<div id="inactivity-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;align-items:center;justify-content:center;">
-  <div style="background:var(--bg1,#1a1f2e);border:1px solid var(--border,#2d3748);border-radius:16px;padding:32px;max-width:380px;width:90%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5);">
-    <div style="font-size:2.5rem;margin-bottom:12px;">⏱️</div>
-    <div style="font-weight:800;font-size:1.1rem;margin-bottom:8px;">Session inactive</div>
-    <div style="color:var(--text3,#a0aec0);font-size:.88rem;margin-bottom:20px;">Vous serez déconnecté dans <strong id="inactivity-countdown" style="color:var(--red,#ff1744)">5:00</strong> pour inactivité.</div>
-    <button onclick="resetInactivityTimer()" style="width:100%;padding:11px;background:var(--green,#00e676);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;">✅ Je suis toujours là</button>
-  </div>
-</div>
-
-<script>
-// ── Minuterie d'inactivité (45 min → warning, +5 min → déconnexion) ──
-let _inactTimer = null, _countTimer = null, _warnSecs = 300;
-const INACTIVE_MS = 45 * 60 * 1000;  // 45 minutes
-const WARN_SECS   = 5 * 60;           // 5 minutes de warning
-
-function resetInactivityTimer() {
-  document.getElementById('inactivity-modal').style.display = 'none';
-  clearTimeout(_inactTimer);
-  clearInterval(_countTimer);
-  if (STATE.token) _inactTimer = setTimeout(showInactivityWarning, INACTIVE_MS);
-}
-
-function showInactivityWarning() {
-  if (!STATE.token) return;
-  _warnSecs = WARN_SECS;
-  const modal = document.getElementById('inactivity-modal');
-  modal.style.display = 'flex';
-  updateCountdown();
-  _countTimer = setInterval(() => {
-    _warnSecs--;
-    updateCountdown();
-    if (_warnSecs <= 0) { clearInterval(_countTimer); doLogout(); }
-  }, 1000);
-}
-
-function updateCountdown() {
-  const m = Math.floor(_warnSecs / 60).toString().padStart(2,'0');
-  const s = (_warnSecs % 60).toString().padStart(2,'0');
-  const el = document.getElementById('inactivity-countdown');
-  if (el) el.textContent = `${m}:${s}`;
-}
-
-// Réinitialise le timer sur toute interaction
-['mousemove','keydown','click','scroll','touchstart'].forEach(evt =>
-  document.addEventListener(evt, () => { if (STATE.token) resetInactivityTimer(); }, { passive: true })
-);
-</script>
-</body>
-</html>
+// ═════════════�
