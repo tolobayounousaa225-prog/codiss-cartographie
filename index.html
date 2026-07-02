@@ -4198,7 +4198,7 @@ async function loadBranchDashboard() {
     if (tbody) {
       const recent = reports.slice(0, 5);
       if (!recent.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Aucun rapport soumis pour l'instant</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Aucun rapport soumis pour l'instant</td></tr>`;
       } else {
         tbody.innerHTML = recent.map(r => `<tr>
           <td><strong>${r.title}</strong></td>
