@@ -4378,4 +4378,113 @@ async function loadViewerDashboard() {
     try {
       const coverage = await api('GET', '/map/coverage-summary');
       renderCoverageList(coverage);
-    } 
+    } catch(e) {}
+  } catch(e) { console.error('loadViewerDashboard:', e); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIX PROFILE SECRÉTAIRE (afficher région/dept)
+// ══════════════════════════════════════════════════════════════
+const _origLoadProfile = loadProfile;
+loadProfile = async function() {
+  _origLoadProfile();
+  const u = STATE.user;
+  const geoPanel = document.getElementById('profile-geo-panel');
+  if (u.role === 'branch' && geoPanel) {
+    geoPanel.style.display = 'block';
+    try {
+      const me = await api('GET', '/auth/me');
+      if (me) {
+        const regEl  = document.getElementById('profile-region');
+        const deptEl = document.getElementById('profile-dept');
+        if (regEl)  regEl.textContent  = me.region_name  || '—';
+        if (deptEl) deptEl.textContent = me.department_name || 'Non assigné';
+      }
+    } catch(e) {}
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// FIX DASHBOARD : appel viewer si rôle viewer
+// ══════════════════════════════════════════════════════════════
+const _origLoadDashboard = loadDashboard;
+loadDashboard = async function() {
+  if (STATE.user && STATE.user.role === 'viewer') {
+    return loadViewerDashboard();
+  }
+  const actPanel = document.getElementById('secretaire-activity-panel');
+  if (actPanel) { actPanel.style.display = 'block'; loadSecretaireActivity(); }
+  return _origLoadDashboard();
+};
+
+// ══════════════════════════════════════════════════════════════
+// FIX MAP : ouvrir side panel au clic sur marker
+// ══════════════════════════════════════════════════════════════
+const _origLoadMapPoints = loadMapPoints;
+loadMapPoints = async function() {
+  await _origLoadMapPoints();
+  if (STATE.markersLayer && window._mapBranchData) {
+    STATE.markersLayer.clearLayers();
+    window._mapBranchData.forEach(p => {
+      if (!p.latitude || !p.longitude) return;
+      const colors = { active:'#00c853', pending:'#ff9100', suspended:'#ff1744', rejected:'#ff1744' };
+      const m = L.circleMarker([p.latitude, p.longitude], {
+        radius: 8, fillColor: colors[p.status] || '#888',
+        color: '#fff', weight: 2, opacity: 1, fillOpacity: .85
+      });
+      m.on('click', () => openMapPanel(p));
+      m.bindTooltip(p.name, { direction:'top', offset:[0,-8] });
+      STATE.markersLayer.addLayer(m);
+    });
+  }
+};
+</script>
+
+<!-- ══ MODALE INACTIVITÉ ══════════════════════════════════════════ -->
+<div id="inactivity-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg1,#1a1f2e);border:1px solid var(--border,#2d3748);border-radius:16px;padding:32px;max-width:380px;width:90%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+    <div style="font-size:2.5rem;margin-bottom:12px;">⏱️</div>
+    <div style="font-weight:800;font-size:1.1rem;margin-bottom:8px;">Session inactive</div>
+    <div style="color:var(--text3,#a0aec0);font-size:.88rem;margin-bottom:20px;">Vous serez déconnecté dans <strong id="inactivity-countdown" style="color:var(--red,#ff1744)">5:00</strong> pour inactivité.</div>
+    <button onclick="resetInactivityTimer()" style="width:100%;padding:11px;background:var(--green,#00e676);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;">✅ Je suis toujours là</button>
+  </div>
+</div>
+
+<script>
+let _inactTimer = null, _countTimer = null, _warnSecs = 300;
+const INACTIVE_MS = 45 * 60 * 1000;
+const WARN_SECS   = 5 * 60;
+
+function resetInactivityTimer() {
+  document.getElementById('inactivity-modal').style.display = 'none';
+  clearTimeout(_inactTimer);
+  clearInterval(_countTimer);
+  if (STATE.token) _inactTimer = setTimeout(showInactivityWarning, INACTIVE_MS);
+}
+
+function showInactivityWarning() {
+  if (!STATE.token) return;
+  _warnSecs = WARN_SECS;
+  const modal = document.getElementById('inactivity-modal');
+  modal.style.display = 'flex';
+  updateCountdown();
+  _countTimer = setInterval(() => {
+    _warnSecs--;
+    updateCountdown();
+    if (_warnSecs <= 0) { clearInterval(_countTimer); doLogout(); }
+  }, 1000);
+}
+
+function updateCountdown() {
+  const m = Math.floor(_warnSecs / 60).toString().padStart(2,'0');
+  const s = (_warnSecs % 60).toString().padStart(2,'0');
+  const el = document.getElementById('inactivity-countdown');
+  if (el) el.textContent = `${m}:${s}`;
+}
+
+['mousemove','keydown','click','scroll','touchstart'].forEach(evt =>
+  document.addEventListener(evt, () => { if (STATE.token) resetInactivityTimer(); }, { passive: true })
+);
+</script>
+</body>
+</html>
