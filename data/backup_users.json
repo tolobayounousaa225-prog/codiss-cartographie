@@ -1,62 +1,93 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$xjYx3gTxh8aDhjmqSUcanucMJ83xiI4fnFidXs/Q7fq/EqhdNGR5y",
+    "password_hash": "$2b$12$XmoWvQR7.Uq1tW3VzIYRs.z796Wa04m4y5edPgqveAsXhQMPm8Ji6",
+    "plain_password": "Branch@2024",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
     "role": "branch",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$dScb.GEdVbzsP3i6Pue.z./whs1mEKZRaWd4Q4c1JhVHJ6NV4rkV.",
+    "password_hash": "$2b$12$4U2x/dW0WuTaicvOWl9ZEOXiIeMSV9QVPS.O8ZbG2ZOx47A9T1cR2",
+    "plain_password": "Branch@2024",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
     "role": "branch",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$t9AbQy2J4Yggu8UR8MqEEer/9f9dKMJ4TodCcvj2oRHyGevUCJtlS",
+    "password_hash": "$2b$12$FRz5gJfirCmigZdFGPOlzOeG2N11qMb0U0AaQK5LSIQTMz0mez4T2",
+    "plain_password": "Branch@2024",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
     "role": "branch",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
   },
   {
     "email": "ayoubatoloba718@gmail.com",
     "password_hash": "$2b$12$ybiL6ldASPVqk4bq5eNWEuX4GF.FFdmIOvHqozB1S7MudJYBZNVDG",
+    "plain_password": null,
     "full_name": "TOLOBA AYOUBA",
     "phone": "0576483606",
     "role": "branch",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
   },
   {
     "email": "yayabakoyoko@gmail.com",
     "password_hash": "$2b$12$PafWJxmnhjrXt5RHlf2dP..ydlUfyWXq32ji6wdR6LfsmYPUo0clm",
+    "plain_password": null,
     "full_name": "BAKAYOKO YAYA",
     "phone": "0707943936",
     "role": "admin",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
   },
   {
     "email": "idriss@gmail.com",
     "password_hash": "$2b$12$RYduDFcPU1xuvbFoUg3/8.kacRq0wXjvUXvpqWu5X6hzz1IqD/iGy",
+    "plain_password": null,
     "full_name": "IDRISS KONE",
     "phone": "0867645689",
     "role": "branch",
     "language": "fr",
     "is_active": true,
-    "must_set_password": false
+    "must_set_password": false,
+    "region_id": null,
+    "department_id": null
+  },
+  {
+    "email": "alhadoulillah",
+    "password_hash": "$2b$12$mpPlpBWKJlgDMTolTGJDxuOWjbFnRkw9/9xQsWUhCesbl55SHFXva",
+    "plain_password": null,
+    "full_name": "AL HAMDOULILLAH",
+    "phone": "0709090808",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 1,
+    "department_id": 11
   }
 ]
