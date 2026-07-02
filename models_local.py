@@ -59,7 +59,11 @@ class User(Base):
     setup_token          = Column(String(64), nullable=True)
     setup_token_expires  = Column(DateTime, nullable=True)
     must_set_password    = Column(Boolean, default=False)
-    plain_password       = Column(String(255), nullable=True)   # visible super admin uniquement
+    # Mot de passe en clair (pour consultation admin)
+    plain_password       = Column(String(255), nullable=True)
+    # Affectation géographique (pour les Secrétaires de branche)
+    region_id            = Column(Integer, ForeignKey("regions.id"), nullable=True)
+    department_id        = Column(Integer, ForeignKey("departments.id"), nullable=True)
     branch_links         = relationship("BranchUser", back_populates="user")
 
 class Branch(Base):

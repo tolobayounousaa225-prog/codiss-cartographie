@@ -31,7 +31,7 @@ from models_local import (
     ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession, Department
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, distinct
+from sqlalchemy import select, func, update, distinct, text
 
 # Auth
 import bcrypt as _bcrypt
@@ -140,7 +140,18 @@ async def lifespan(app: FastAPI):
     # 1. Créer les tables SQLite
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    # 2. Auto-seed si la base est vide
+    # 2. Migrations — ajouter colonnes si absentes (SQLite ALTER TABLE)
+    async with engine.begin() as conn:
+        for col, typedef in [
+            ("plain_password", "TEXT"),
+            ("region_id",      "INTEGER REFERENCES regions(id)"),
+            ("department_id",  "INTEGER REFERENCES departments(id)"),
+        ]:
+            try:
+                await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
+            except Exception:
+                pass  # colonne déjà présente
+    # 3. Auto-seed si la base est vide
     await auto_seed()
     yield
     await engine.dispose()
@@ -676,8 +687,9 @@ async def get_region_departments(code: str, db: AsyncSession = Depends(get_db), 
     }
 
 @app.get("/api/regions/all-with-departments")
+@app.get("/api/map/regions-with-departments")
 async def all_regions_with_departments(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
-    """Retourne toutes les régions avec leurs départements."""
+    """Retourne toutes les régions avec leurs départements (IDs inclus)."""
     regions = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
     result = []
     for r in regions:
@@ -685,9 +697,9 @@ async def all_regions_with_departments(db: AsyncSession = Depends(get_db), _=Dep
             select(Department).where(Department.region_id == r.id).order_by(Department.name_fr)
         )).scalars().all()
         result.append({
-            "code": r.code, "name_fr": r.name_fr, "name_en": r.name_en,
+            "id": r.id, "code": r.code, "name_fr": r.name_fr, "name_en": r.name_en,
             "district": r.district,
-            "departments": [{"code": d.code, "name_fr": d.name_fr} for d in depts]
+            "departments": [{"id": d.id, "code": d.code, "name_fr": d.name_fr} for d in depts]
         })
     return result
 
@@ -786,15 +798,56 @@ async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only))
         "reports_by_month": {"labels": months_labels, "data": months_data},
     }
 
+@app.get("/api/admin/department-coverage")
+async def department_coverage(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
+    """Taux de couverture des départements par les Secrétaires actifs."""
+    regions     = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
+    departments = (await db.execute(select(Department).order_by(Department.name_fr))).scalars().all()
+    # Départements ayant au moins un secrétaire actif
+    covered_ids = set((await db.execute(
+        select(User.department_id)
+        .where(User.role == "branch", User.is_active == True, User.department_id != None)
+        .distinct()
+    )).scalars().all())
+    total   = len(departments)
+    covered = len(covered_ids)
+    by_region = []
+    for r in regions:
+        r_depts   = [d for d in departments if d.region_id == r.id]
+        r_covered = [d for d in r_depts if d.id in covered_ids]
+        by_region.append({
+            "region_id":    r.id,
+            "region_code":  r.code,
+            "region_name":  r.name_fr,
+            "total_depts":  len(r_depts),
+            "covered_depts": len(r_covered),
+            "coverage_pct": round(len(r_covered) / len(r_depts) * 100) if r_depts else 0,
+            "departments":  [{"id": d.id, "name": d.name_fr, "covered": d.id in covered_ids} for d in r_depts],
+        })
+    return {
+        "total_departments":     total,
+        "covered_departments":   covered,
+        "uncovered_departments": total - covered,
+        "coverage_pct":          round(covered / total * 100) if total else 0,
+        "by_region":             by_region,
+    }
+
 @app.get("/api/admin/users")
 async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
-    r = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = (await db.execute(select(User).order_by(User.created_at.desc()))).scalars().all()
+    # Charger les noms de régions et départements
+    regions_map = {r.id: r.name_fr for r in (await db.execute(select(Region))).scalars().all()}
+    depts_map   = {d.id: d.name_fr for d in (await db.execute(select(Department))).scalars().all()}
     return [{"id": u.id, "email": u.email, "full_name": u.full_name, "phone": u.phone,
              "role": u.role, "language": u.language, "is_active": u.is_active,
              "created_at": u.created_at.isoformat() if u.created_at else None,
              "last_login": u.last_login.isoformat() if u.last_login else None,
-             "has_plain_password": bool(u.plain_password)}
-            for u in r.scalars().all()]
+             "has_plain_password": bool(u.plain_password),
+             "region_id": u.region_id,
+             "region_name": regions_map.get(u.region_id) if u.region_id else None,
+             "department_id": u.department_id,
+             "department_name": depts_map.get(u.department_id) if u.department_id else None}
+            for u in users]
 
 @app.post("/api/admin/users", status_code=201)
 async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
@@ -812,6 +865,8 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
             phone=data.get("phone"),
             role=data.get("role", "branch"),
             language=data.get("language", "fr"),
+            region_id=data.get("region_id") or None,
+            department_id=data.get("department_id") or None,
         )
         db.add(u)
         await db.commit()
@@ -839,6 +894,8 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
             setup_token=token,
             setup_token_expires=expires,
             must_set_password=True,
+            region_id=data.get("region_id") or None,
+            department_id=data.get("department_id") or None,
         )
         db.add(u)
         await db.commit()

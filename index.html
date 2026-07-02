@@ -1030,8 +1030,10 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <div class="stat-card green"><div class="stat-icon green">✅</div><div><div class="stat-val" id="st-active">—</div><div class="stat-lbl" data-fr="Branches actives" data-ar="الفروع النشطة">Branches actives</div></div></div>
           <div class="stat-card orange"><div class="stat-icon orange">⏳</div><div><div class="stat-val" id="st-pending">—</div><div class="stat-lbl" data-fr="En attente" data-ar="قيد الانتظار">En attente</div></div></div>
           <div class="stat-card blue"><div class="stat-icon blue">🗺️</div><div><div class="stat-val" id="st-regions">—</div><div class="stat-lbl" data-fr="Régions couvertes" data-ar="المناطق المغطاة">Régions couvertes</div></div></div>
-          <div class="stat-card orange"><div class="stat-icon orange">📊</div><div><div class="stat-val" id="st-coverage">—</div><div class="stat-lbl" data-fr="Taux de couverture" data-ar="معدل التغطية">Taux de couverture</div></div></div>
+          <div class="stat-card orange"><div class="stat-icon orange">📊</div><div><div class="stat-val" id="st-coverage">—</div><div class="stat-lbl" data-fr="Taux couverture régions" data-ar="معدل التغطية">Taux couverture régions</div></div></div>
           <div class="stat-card blue"><div class="stat-icon blue">📝</div><div><div class="stat-val" id="st-reports">—</div><div class="stat-lbl" data-fr="Rapports reçus" data-ar="التقارير المستلمة">Rapports reçus</div></div></div>
+          <div class="stat-card green" id="st-dept-coverage-card"><div class="stat-icon green">🏙️</div><div><div class="stat-val" id="st-dept-coverage">—</div><div class="stat-lbl">Couverture départements</div></div></div>
+          <div class="stat-card red" id="st-dept-uncovered-card"><div class="stat-icon red">⚠️</div><div><div class="stat-val" id="st-dept-uncovered">—</div><div class="stat-lbl">Dép. sans secrétaire</div></div></div>
         </div>
 
 
@@ -1123,6 +1125,34 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
             </div>
           </div>
           <div id="coverage-list">Chargement…</div>
+        </div>
+
+        <!-- ═══ COUVERTURE DÉPARTEMENTS ═══ -->
+        <div class="panel" id="dept-coverage-panel" style="margin-top:16px">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">🏙️ Couverture des Départements par Secrétaire</div>
+              <div class="panel-subtitle">Départements ayant un secrétaire de branche assigné</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div id="dept-cov-global" style="font-size:1.4rem;font-weight:700;color:var(--green)">—</div>
+              <div style="font-size:.78rem;color:var(--text3)">global</div>
+            </div>
+          </div>
+          <!-- Barre globale -->
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text2);margin-bottom:4px">
+              <span id="dept-cov-label">Chargement…</span>
+              <span id="dept-cov-pct" style="font-weight:600"></span>
+            </div>
+            <div class="coverage-bar" style="height:10px">
+              <div id="dept-cov-bar" class="coverage-fill" style="width:0%;background:var(--green2)"></div>
+            </div>
+          </div>
+          <!-- Détail par région (accordéon) -->
+          <div id="dept-coverage-list" style="display:flex;flex-direction:column;gap:8px">
+            <div style="text-align:center;color:var(--text3);padding:20px">Chargement…</div>
+          </div>
         </div>
       </div>
 
@@ -1251,7 +1281,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
                 <th data-fr="Nom" data-ar="الاسم">Nom</th>
                 <th>Email</th>
                 <th data-fr="Rôle" data-ar="الدور">Rôle</th>
-                <th data-fr="Téléphone" data-ar="الهاتف">Téléphone</th>
+                <th data-fr="Région / Département" data-ar="المنطقة / القسم">Région / Département</th>
                 <th data-fr="Actif" data-ar="نشط">Actif</th>
                 <th data-fr="Dernière connexion" data-ar="آخر دخول">Dernière connexion</th>
                 <th data-fr="Actions" data-ar="الإجراءات">Actions</th>
@@ -1487,12 +1517,24 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
         <label>Mot de passe <span style="color:var(--text3);font-size:.78rem;font-weight:400">(laisser vide = envoyer un lien d'invitation)</span></label>
         <input type="password" id="u-password" placeholder="Ex: MonMdp@2024 (min. 6 caractères)"/>
       </div>
-      <div class="form-row full" id="u-branch-row" style="display:none">
-        <label data-fr="Lier à une branche" data-ar="ربط بفرع">Lier à une branche <span class="form-required">*</span></label>
-        <select id="u-branch">
-          <option value="" data-fr="— Sélectionner une branche —" data-ar="— اختر فرعاً —">— Sélectionner une branche —</option>
-        </select>
-        <small style="color:var(--text3);font-size:.76rem;margin-top:4px;display:block" data-fr="Le secrétaire sera associé à cette branche et pourra y soumettre des rapports." data-ar="سيُربط الأمين بهذا الفرع ويمكنه إرسال التقارير.">Le secrétaire sera associé à cette branche et pourra y soumettre des rapports.</small>
+      <div id="u-secretary-rows" style="display:none;contents:contents">
+        <div class="form-row">
+          <label>Région <span class="form-required">*</span></label>
+          <select id="u-region" onchange="loadDeptsForUser()">
+            <option value="">— Sélectionner une région —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Département <span class="form-required">*</span></label>
+          <select id="u-dept">
+            <option value="">— Sélectionner d'abord une région —</option>
+          </select>
+        </div>
+        <div class="form-row full">
+          <small style="color:var(--text3);font-size:.76rem;display:block">
+            📍 Le secrétaire sera affecté à ce département et pourra y soumettre des rapports de présence.
+          </small>
+        </div>
       </div>
     </div>
     <div style="background:var(--blue3);border-radius:8px;padding:10px 14px;margin-top:4px;font-size:.8rem;color:var(--blue)">
@@ -1826,6 +1868,20 @@ async function loadDashboard() {
       if (el) el.innerHTML = '<p style="color:var(--text3);text-align:center">Cliquez sur <b>Régions</b> dans le menu pour voir la liste complète.</p>';
     }
 
+    // Couverture départements (admin seulement)
+    if (STATE.me && ['admin','superadmin'].includes(STATE.me.role)) {
+      try {
+        const deptCov = await api('GET', '/admin/department-coverage');
+        renderDeptCoverage(deptCov);
+      } catch(e) {
+        const el = document.getElementById('dept-coverage-list');
+        if (el) el.innerHTML = '<p style="color:var(--text3);text-align:center">Données non disponibles</p>';
+      }
+    } else {
+      const p = document.getElementById('dept-coverage-panel');
+      if (p) p.style.display = 'none';
+    }
+
     // ── Graphiques (admin uniquement) ──────────────────────────────
     if (STATE.me && ['admin','superadmin'].includes(STATE.me.role)) {
       const as = await api('GET', '/admin/stats');
@@ -1897,6 +1953,68 @@ function renderReportsChart(as) {
       }
     }
   });
+}
+
+function renderDeptCoverage(data) {
+  if (!data) return;
+  const pct     = data.coverage_pct || 0;
+  const covered = data.covered_departments || 0;
+  const total   = data.total_departments   || 0;
+  const uncov   = data.uncovered_departments || 0;
+
+  // Stat cards
+  const stDept = document.getElementById('st-dept-coverage');
+  if (stDept) stDept.textContent = `${covered}/${total}`;
+  const stUncov = document.getElementById('st-dept-uncovered');
+  if (stUncov) {
+    stUncov.textContent = uncov;
+    const card = document.getElementById('st-dept-uncovered-card');
+    if (card) card.className = `stat-card ${uncov === 0 ? 'green' : uncov < 10 ? 'orange' : 'red'}`;
+  }
+
+  // Global bar in dept panel
+  const barColor = pct >= 80 ? 'var(--green2)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
+  const barEl = document.getElementById('dept-cov-bar');
+  if (barEl) { barEl.style.width = pct + '%'; barEl.style.background = barColor; }
+  const globalEl = document.getElementById('dept-cov-global');
+  if (globalEl) { globalEl.textContent = pct + '%'; globalEl.style.color = barColor; }
+  const labelEl = document.getElementById('dept-cov-label');
+  if (labelEl) labelEl.textContent = `${covered} département${covered>1?'s':''} couvert${covered>1?'s':''} sur ${total}`;
+  const pctEl = document.getElementById('dept-cov-pct');
+  if (pctEl) { pctEl.textContent = pct + '%'; pctEl.style.color = barColor; }
+
+  // Per-region accordion
+  const listEl = document.getElementById('dept-coverage-list');
+  if (!listEl || !data.by_region) return;
+
+  listEl.innerHTML = data.by_region.map(r => {
+    const rPct    = r.coverage_pct || 0;
+    const rColor  = rPct >= 80 ? 'var(--green2)' : rPct >= 50 ? 'var(--orange)' : rPct > 0 ? '#e6a817' : 'var(--red)';
+    const covered = r.covered_depts || 0;
+    const total   = r.total_depts   || 0;
+    const deptItems = (r.departments || []).map(d =>
+      `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:.72rem;
+              background:${d.covered ? 'rgba(46,213,115,.15)' : 'rgba(255,71,87,.1)'};
+              color:${d.covered ? 'var(--green)' : 'var(--red)'};margin:2px">
+        ${d.covered ? '✅' : '⭕'} ${d.name}
+      </span>`).join('');
+
+    return `<details style="background:var(--bg2);border-radius:8px;overflow:hidden">
+      <summary style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;user-select:none">
+        <div style="display:flex;align-items:center;gap:10px;flex:1">
+          <span style="font-size:.85rem;font-weight:600;color:var(--text)">${r.region_name}</span>
+          <div class="coverage-bar" style="flex:1;height:6px;max-width:120px">
+            <div class="coverage-fill" style="width:${rPct}%;background:${rColor}"></div>
+          </div>
+          <span style="font-size:.78rem;font-weight:600;color:${rColor}">${rPct}%</span>
+        </div>
+        <span style="font-size:.75rem;color:var(--text3);white-space:nowrap">${covered}/${total}</span>
+      </summary>
+      <div style="padding:10px 14px 12px;display:flex;flex-wrap:wrap;gap:4px;border-top:1px solid var(--bg3)">
+        ${deptItems || '<span style="color:var(--text3);font-size:.78rem">Aucun département</span>'}
+      </div>
+    </details>`;
+  }).join('');
 }
 
 function renderCoverageList(coverage) {
@@ -2540,7 +2658,7 @@ async function loadAllReports() {
           </div>
         </td>
       </tr>`).join('');
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red)">${e.message}</td></tr>`; }
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">${e.message}</td></tr>`; }
 }
 
 // Approbation directe
@@ -2749,12 +2867,19 @@ function filterUsers() {
 }
 function renderUsersTable(users) {
   const tbody = document.getElementById('users-tbody');
-  tbody.innerHTML = users.map(u => `
+  tbody.innerHTML = users.map(u => {
+    const geoCell = u.role === 'branch'
+      ? `<div style="font-size:.75rem;line-height:1.4">
+           ${u.region_name ? `<span style="color:var(--text2)">🗺️ ${u.region_name}</span><br>` : ''}
+           ${u.department_name ? `<span style="color:var(--blue)">📍 ${u.department_name}</span>` : '<span style="color:var(--text3);font-style:italic">Non affecté</span>'}
+         </div>`
+      : '<span style="color:var(--text3)">—</span>';
+    return `
     <tr>
       <td style="font-weight:600">${u.full_name}</td>
       <td style="font-size:.82rem">${u.email}</td>
       <td>${roleBadgeHTML(u.role)}</td>
-      <td style="font-size:.82rem">${u.phone||'—'}</td>
+      <td>${geoCell}</td>
       <td>${u.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
       <td style="font-size:.78rem;color:var(--text3)">${fmtDate(u.last_login)}</td>
       <td>
@@ -2774,7 +2899,8 @@ function renderUsersTable(users) {
           </button>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function changeUserRole(uid, newRole, selectEl) {
@@ -2796,54 +2922,77 @@ async function toggleUser(id) {
 }
 
 async function openNewUserModal() {
-  // Réinitialiser les champs
   ['u-name','u-email','u-phone','u-password'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('u-role').value = 'branch';
   document.getElementById('user-modal-alert').style.display = 'none';
-  // Charger les branches dans le sélecteur
-  await loadBranchesForSelect();
-  // Afficher le sélecteur de branche par défaut (role=branch au départ)
-  document.getElementById('u-branch-row').style.display = 'block';
+  document.getElementById('u-secretary-rows').style.display = 'contents';
+  await loadRegionsForUserModal();
   document.getElementById('modal-user').classList.remove('modal-hidden');
 }
 
-async function loadBranchesForSelect() {
-  const sel = document.getElementById('u-branch');
-  sel.innerHTML = `<option value="">${STATE.lang==='fr'?'— Sélectionner une branche —':'— Select a branch —'}</option>`;
+async function loadRegionsForUserModal() {
+  const sel = document.getElementById('u-region');
+  sel.innerHTML = '<option value="">— Sélectionner une région —</option>';
+  document.getElementById('u-dept').innerHTML = '<option value="">— Sélectionner d'abord une région —</option>';
   try {
-    const branches = await api('GET', '/branches');
-    branches.forEach(b => {
+    const regions = await api('GET', '/map/regions');
+    regions.forEach(r => {
       const opt = document.createElement('option');
-      opt.value = b.id;
-      opt.textContent = `${b.name} (${b.city}) — ${b.code}`;
+      opt.value = r.id;
+      opt.textContent = r.name_fr;
       sel.appendChild(opt);
     });
   } catch(e) {}
 }
 
-// Afficher/masquer le sélecteur branche selon le rôle choisi
+async function loadDeptsForUser() {
+  const regionId = document.getElementById('u-region').value;
+  const dsel = document.getElementById('u-dept');
+  dsel.innerHTML = '<option value="">Chargement…</option>';
+  if (!regionId) { dsel.innerHTML = '<option value="">— Sélectionner d'abord une région —</option>'; return; }
+  try {
+    const regions = await api('GET', '/map/regions-with-departments');
+    const reg = regions.find(r => String(r.id) === String(regionId));
+    dsel.innerHTML = '<option value="">— Sélectionner un département —</option>';
+    if (reg && reg.departments) {
+      reg.departments.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name_fr;
+        dsel.appendChild(opt);
+      });
+    }
+  } catch(e) { dsel.innerHTML = '<option value="">Erreur de chargement</option>'; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const roleEl = document.getElementById('u-role');
   if (roleEl) {
     roleEl.addEventListener('change', () => {
-      const show = roleEl.value === 'branch';
-      document.getElementById('u-branch-row').style.display = show ? 'block' : 'none';
-      if (!show) document.getElementById('u-branch').value = '';
+      const isSecretary = roleEl.value === 'branch';
+      document.getElementById('u-secretary-rows').style.display = isSecretary ? 'contents' : 'none';
     });
   }
 });
 
 async function saveUser() {
   const alertEl = document.getElementById('user-modal-alert');
-  const role = document.getElementById('u-role').value;
-  const branchId = document.getElementById('u-branch').value;
+  const role    = document.getElementById('u-role').value;
 
-  if (role === 'branch' && !branchId) {
-    showAlert(alertEl,'error', STATE.lang==='fr'?'Veuillez sélectionner une branche pour ce secrétaire.':'Please select a branch for this secretary.');
-    return;
+  if (role === 'branch') {
+    const regionId = document.getElementById('u-region').value;
+    const deptId   = document.getElementById('u-dept').value;
+    if (!regionId) {
+      showAlert(alertEl,'error','Veuillez sélectionner une région pour ce secrétaire.');
+      return;
+    }
+    if (!deptId) {
+      showAlert(alertEl,'error','Veuillez sélectionner un département pour ce secrétaire.');
+      return;
+    }
   }
 
-  const pwdEl = document.getElementById('u-password');
+  const pwdEl  = document.getElementById('u-password');
   const pwdVal = pwdEl ? pwdEl.value.trim() : '';
   const payload = {
     full_name: document.getElementById('u-name').value.trim(),
@@ -2853,18 +3002,18 @@ async function saveUser() {
     language:  STATE.lang,
   };
   if (pwdVal) payload.password = pwdVal;
+  if (role === 'branch') {
+    payload.region_id     = parseInt(document.getElementById('u-region').value) || null;
+    payload.department_id = parseInt(document.getElementById('u-dept').value)   || null;
+  }
   if (!payload.full_name || !payload.email) {
-    showAlert(alertEl,'error', STATE.lang==='fr'?'Nom et email sont obligatoires.':'Name and email are required.');
+    showAlert(alertEl,'error','Nom et email sont obligatoires.');
     return;
   }
   try {
     const newUser = await api('POST', '/admin/users', payload);
-    if (role === 'branch' && branchId && newUser && newUser.id) {
-      await api('POST', `/branches/${branchId}/assign-user?user_id=${newUser.id}&role=secretary`);
-    }
     if (payload.password) {
-      // Mode direct : mot de passe fourni par l'admin
-      showAlert(alertEl,'success', `✅ Utilisateur créé avec succès ! Mot de passe : <strong>${payload.password}</strong>`);
+      showAlert(alertEl,'success', `✅ Utilisateur créé ! Mot de passe : <strong>${payload.password}</strong>`);
       setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, 2500);
     } else if (newUser.email_sent) {
       showAlert(alertEl,'success', `✅ Utilisateur créé ! Email d'invitation envoyé à ${payload.email}.`);
@@ -2872,10 +3021,8 @@ async function saveUser() {
     } else {
       const link = newUser.setup_link || '';
       showAlert(alertEl,'success',
-        `✅ Utilisateur créé !<br>
-         <strong>Partagez ce lien</strong> pour qu'il définisse son mot de passe :<br>
-         <a href="${link}" target="_blank" style="color:var(--green);word-break:break-all;font-size:.8rem;">${link}</a>`
-      );
+        `✅ Utilisateur créé !<br><strong>Partagez ce lien</strong> pour définir le mot de passe :<br>
+         <a href="${link}" target="_blank" style="color:var(--green);word-break:break-all;font-size:.8rem;">${link}</a>`);
       setTimeout(()=>{ closeModal('modal-user'); loadUsers(); }, 9000);
     }
   } catch(e) { showAlert(alertEl,'error', e.message); }
