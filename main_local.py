@@ -31,7 +31,7 @@ from models_local import (
     ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession, Department
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, distinct, text
+from sqlalchemy import select, func, update, distinct, text, case
 
 # Auth
 import bcrypt as _bcrypt
@@ -372,8 +372,21 @@ async def login(data: dict, request: Request, db: AsyncSession = Depends(get_db)
     }
 
 @app.get("/api/auth/me")
-async def me(u: User = Depends(current_user)):
-    return {"id": u.id, "email": u.email, "full_name": u.full_name, "role": u.role, "language": u.language, "is_active": u.is_active}
+async def me(u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    region_name = None
+    dept_name   = None
+    if u.region_id:
+        reg = await db.get(Region, u.region_id)
+        if reg: region_name = reg.name_fr
+    if u.department_id:
+        dept = await db.get(Department, u.department_id)
+        if dept: dept_name = dept.name_fr
+    return {
+        "id": u.id, "email": u.email, "full_name": u.full_name,
+        "role": u.role, "language": u.language, "is_active": u.is_active,
+        "region_id": u.region_id, "region_name": region_name,
+        "department_id": u.department_id, "department_name": dept_name,
+    }
 
 @app.patch("/api/auth/me/language")
 async def set_lang(language: str, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
@@ -764,6 +777,20 @@ async def coverage_summary(db: AsyncSession = Depends(get_db), _=Depends(current
 # ══════════════════════════════════════════════════════
 # ADMIN
 # ══════════════════════════════════════════════════════
+@app.get("/api/viewer/stats")
+async def viewer_stats(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
+    """Stats basiques accessibles à tous les rôles authentifiés (viewer inclus)."""
+    total_branches  = (await db.execute(select(func.count()).select_from(Branch))).scalar()
+    active_branches = (await db.execute(select(func.count()).select_from(Branch).where(Branch.status == "active"))).scalar()
+    total_regions   = (await db.execute(select(func.count()).select_from(Region))).scalar()
+    coverage        = (await db.execute(select(func.count()).select_from(Branch).where(Branch.status == "active", Branch.region_id != None).distinct())).scalar()
+    return {
+        "total_branches": total_branches,
+        "active_branches": active_branches,
+        "total_regions": total_regions,
+        "coverage_regions": coverage,
+    }
+
 @app.get("/api/admin/stats")
 async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     # Statuts des branches
@@ -834,6 +861,37 @@ async def department_coverage(db: AsyncSession = Depends(get_db), _=Depends(curr
         "coverage_pct":          round(covered / total * 100) if total else 0,
         "by_region":             by_region,
     }
+
+@app.get("/api/admin/secretaire-activity")
+async def secretaire_activity(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Classement des secrétaires par nombre de rapports soumis."""
+    rows = (await db.execute(
+        select(
+            User.id, User.full_name, User.email, User.region_id, User.department_id, User.is_active,
+            func.count(PresenceReport.id).label("total_reports"),
+            func.sum(case((PresenceReport.status == "approved", 1), else_=0)).label("approved"),
+            func.sum(case((PresenceReport.status == "submitted", 1), else_=0)).label("pending"),
+            func.max(PresenceReport.created_at).label("last_report"),
+        )
+        .outerjoin(PresenceReport, PresenceReport.submitted_by == User.id)
+        .where(User.role == "branch")
+        .group_by(User.id)
+        .order_by(func.count(PresenceReport.id).desc())
+    )).all()
+
+    regions_map = {r.id: r.name_fr for r in (await db.execute(select(Region))).scalars().all()}
+    depts_map   = {d.id: d.name_fr for d in (await db.execute(select(Department))).scalars().all()}
+
+    return [{
+        "id": r.id, "full_name": r.full_name, "email": r.email,
+        "region_name": regions_map.get(r.region_id, "—"),
+        "department_name": depts_map.get(r.department_id, "—"),
+        "is_active": r.is_active,
+        "total_reports": r.total_reports or 0,
+        "approved": int(r.approved or 0),
+        "pending": int(r.pending or 0),
+        "last_report": r.last_report.isoformat() if r.last_report else None,
+    } for r in rows]
 
 @app.get("/api/admin/users")
 async def list_users(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
@@ -951,6 +1009,29 @@ async def setup_password(data: dict, db: AsyncSession = Depends(get_db)):
     u.is_active           = True
     await db.commit()
     return {"ok": True, "message": "Mot de passe défini avec succès. Vous pouvez maintenant vous connecter."}
+
+@app.put("/api/admin/users/{uid}")
+async def update_user(uid: str, data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Modifier nom, email, téléphone, région, département d'un utilisateur."""
+    u = await db.get(User, uid)
+    if not u: raise HTTPException(404, "Utilisateur introuvable")
+    if u.role == "superadmin": raise HTTPException(403, "Impossible de modifier le superadmin")
+    if "full_name" in data and data["full_name"].strip():
+        u.full_name = data["full_name"].strip()
+    if "email" in data and data["email"].strip():
+        # Vérifier unicité email
+        other = (await db.execute(select(User).where(User.email == data["email"].lower().strip(), User.id != uid))).scalar_one_or_none()
+        if other: raise HTTPException(400, "Cet email est déjà utilisé par un autre compte")
+        u.email = data["email"].lower().strip()
+    if "phone" in data:
+        u.phone = data.get("phone") or None
+    if "region_id" in data:
+        u.region_id = data.get("region_id") or None
+    if "department_id" in data:
+        u.department_id = data.get("department_id") or None
+    await db.commit()
+    await backup_users_to_github(db=db)
+    return {"ok": True, "message": "Utilisateur mis à jour"}
 
 @app.patch("/api/admin/users/{uid}/toggle-active")
 async def toggle_user(uid: str, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):

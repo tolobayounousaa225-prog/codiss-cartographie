@@ -154,18 +154,46 @@ async def do_seed(db: AsyncSession):
         ("secretaire.bouake@codiss.ci",      "Secrétaire Bouaké",       "CODISS-BKE"),
         ("secretaire.yamoussoukro@codiss.ci","Secrétaire Yamoussoukro", "CODISS-YAM"),
     ]
+    # Mapping branche → (code_region, nom_dept cherché)
+    branch_geo = {
+        "CODISS-ABJ": ("ABJ", "Cocody"),          # Abidjan → Cocody
+        "CODISS-BKE": ("HAM", "Bouaké"),           # Hambol → Bouaké
+        "CODISS-YAM": ("YAM", "Yamoussoukro"),     # Yamoussoukro
+    }
     for email, name, branch_code in branch_users_data:
         ex = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
         if not ex:
+            # Chercher la région et le département
+            geo = branch_geo.get(branch_code, (None, None))
+            r_id, d_id = None, None
+            if geo[0]:
+                reg = (await db.execute(select(Region).where(Region.code == geo[0]))).scalar_one_or_none()
+                if reg:
+                    r_id = reg.id
+                    dept = (await db.execute(
+                        select(Department).where(
+                            Department.region_id == reg.id,
+                            Department.name_fr == geo[1]
+                        )
+                    )).scalar_one_or_none()
+                    if not dept:
+                        # Prendre le premier département de la région
+                        dept = (await db.execute(
+                            select(Department).where(Department.region_id == reg.id)
+                        )).scalars().first()
+                    if dept:
+                        d_id = dept.id
             u = User(
                 email=email, password_hash=pwd_hash("Branch@2024"), plain_password="Branch@2024",
                 full_name=name, role="branch", language="fr",
+                region_id=r_id, department_id=d_id,
             )
             db.add(u)
             await db.flush()
             if branch_code in branch_ids:
                 db.add(BranchUser(user_id=u.id, branch_id=branch_ids[branch_code], role="secretary"))
-            print(f"     + Compte : {email} / Branch@2024")
+            dept_info = f" → {geo[1]}" if geo[1] else ""
+            print(f"     + Compte : {email} / Branch@2024{dept_info}")
 
     # ── Notification de bienvenue ─────────────────────────────
     admin_user = (await db.execute(select(User).where(User.email == "admin@codiss.ci"))).scalar_one_or_none()

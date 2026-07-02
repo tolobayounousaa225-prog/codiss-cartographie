@@ -653,6 +653,126 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   [dir="rtl"] .sidebar.open { transform:translateX(0); }
   [dir="rtl"] .main { margin-right:0; }
 }
+
+/* ════ LIGHT THEME ════ */
+body.light-mode {
+  --bg:#f0f4f8; --bg2:#e2e8f0; --bg3:#cbd5e0; --bg4:#a0aec0;
+  --border:rgba(0,0,0,.1); --border2:rgba(0,0,0,.2);
+  --text:#1a202c; --text2:#2d3748; --text3:#718096;
+  --white:#fff;
+}
+body.light-mode body::before { opacity:.3; }
+body.light-mode .sidebar { background:var(--bg2); border-right:1px solid var(--border); }
+body.light-mode .panel { background:var(--bg2); }
+body.light-mode .topbar { background:var(--bg2); border-bottom:1px solid var(--border); }
+body.light-mode table thead tr { background:var(--bg3); }
+body.light-mode tr:hover td { background:rgba(0,0,0,.04); }
+body.light-mode input, body.light-mode select, body.light-mode textarea {
+  background:var(--bg); color:var(--text); border-color:var(--border2);
+}
+
+/* ════ THEME TOGGLE BUTTON ════ */
+.theme-toggle {
+  background:none; border:1.5px solid var(--border2); border-radius:20px;
+  color:var(--text2); cursor:pointer; font-size:.82rem; padding:5px 12px;
+  display:flex; align-items:center; gap:5px; transition:.2s;
+}
+.theme-toggle:hover { border-color:var(--green); color:var(--green); }
+
+/* ════ TOAST NOTIFICATIONS ════ */
+#toast-container {
+  position:fixed; bottom:24px; right:24px; z-index:99999;
+  display:flex; flex-direction:column; gap:10px; pointer-events:none;
+}
+.toast {
+  padding:12px 18px; border-radius:10px; font-size:.85rem; font-weight:600;
+  color:#fff; backdrop-filter:blur(12px); pointer-events:auto;
+  display:flex; align-items:center; gap:10px; min-width:260px; max-width:380px;
+  box-shadow:0 8px 32px rgba(0,0,0,.4); transform:translateX(120%);
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1); border:1px solid rgba(255,255,255,.1);
+}
+.toast.show { transform:translateX(0); }
+.toast.toast-success { background:rgba(0,163,82,.92); }
+.toast.toast-error   { background:rgba(220,38,38,.92); }
+.toast.toast-info    { background:rgba(59,130,246,.92); }
+.toast.toast-warn    { background:rgba(217,119,6,.92); }
+.toast .toast-close  { margin-left:auto; cursor:pointer; opacity:.7; font-size:1rem; }
+.toast .toast-close:hover { opacity:1; }
+
+/* ════ SKELETON LOADERS ════ */
+@keyframes shimmer {
+  0%  { background-position:-800px 0; }
+  100%{ background-position:800px 0; }
+}
+.skeleton {
+  background:linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
+  background-size:800px 100%; animation:shimmer 1.5s infinite linear;
+  border-radius:6px;
+}
+.skeleton-row td { padding:10px 12px !important; }
+.skeleton-cell { height:16px; border-radius:4px; }
+.skeleton-cell.w30 { width:30%; } .skeleton-cell.w50 { width:50%; }
+.skeleton-cell.w70 { width:70%; } .skeleton-cell.w100 { width:100%; }
+
+/* ════ AVATARS / INITIALES ════ */
+.user-avatar {
+  width:32px; height:32px; border-radius:50%; display:inline-flex;
+  align-items:center; justify-content:center; font-size:.72rem; font-weight:800;
+  flex-shrink:0; text-transform:uppercase; letter-spacing:.5px;
+}
+.user-avatar-sm { width:26px; height:26px; font-size:.65rem; }
+
+/* ════ MAP SIDE PANEL ════ */
+#map-side-panel {
+  position:absolute; top:0; right:0; width:300px; height:100%;
+  background:var(--bg2); border-left:1px solid var(--border);
+  z-index:1000; padding:20px; overflow-y:auto;
+  transform:translateX(100%); transition:transform .3s ease;
+  display:flex; flex-direction:column; gap:12px;
+}
+#map-side-panel.open { transform:translateX(0); }
+#map-wrapper { position:relative; display:flex; }
+#map-wrapper #map { flex:1; transition:margin-right .3s ease; }
+#map-wrapper.panel-open #map { margin-right:300px; }
+.map-panel-close {
+  position:absolute; top:12px; right:12px; background:var(--bg3);
+  border:none; border-radius:50%; width:28px; height:28px;
+  cursor:pointer; color:var(--text); font-size:1rem; display:flex;
+  align-items:center; justify-content:center;
+}
+
+/* ════ PAGINATION ════ */
+.pagination {
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:14px 0 4px; flex-wrap:wrap;
+}
+.page-btn {
+  min-width:34px; height:34px; border-radius:8px; border:1.5px solid var(--border2);
+  background:none; color:var(--text2); cursor:pointer; font-size:.82rem;
+  font-weight:600; display:flex; align-items:center; justify-content:center;
+  transition:.15s; padding:0 8px;
+}
+.page-btn:hover { border-color:var(--green); color:var(--green); background:var(--green3); }
+.page-btn.active { background:var(--green); border-color:var(--green); color:#000; }
+.page-btn:disabled { opacity:.35; cursor:default; pointer-events:none; }
+.page-info { font-size:.78rem; color:var(--text3); white-space:nowrap; }
+
+/* ════ SECRÉTAIRE DASHBOARD ════ */
+#section-branch-dashboard { }
+.branch-stat-card {
+  background:var(--bg3); border-radius:12px; padding:18px 20px;
+  display:flex; align-items:center; gap:14px; border:1px solid var(--border);
+}
+.branch-stat-icon { font-size:1.6rem; }
+.branch-stat-val { font-size:1.6rem; font-weight:800; color:var(--text); }
+.branch-stat-lbl { font-size:.75rem; color:var(--text3); margin-top:2px; }
+
+/* ════ ACTIVITY TABLE ════ */
+.activity-bar {
+  height:6px; border-radius:3px; background:var(--green2);
+  transition:width .4s ease; min-width:4px;
+}
+
 </style>
 </head>
 <body>
@@ -1116,6 +1236,26 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           </div>
         </div>
 
+        <!-- Panel Activité Secrétaires (admin/superadmin) -->
+        <div class="panel" id="secretaire-activity-panel" style="margin-top:18px;display:none">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📊 Activité des Secrétaires</div>
+              <div class="panel-subtitle">Classement par nombre de rapports soumis</div>
+            </div>
+            <button class="action-btn gray" onclick="loadSecretaireActivity()" style="font-size:.78rem;">⟳ Actualiser</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Secrétaire</th><th>Département</th>
+                <th>Rapports</th><th>Activité</th><th>Dernier rapport</th><th>Statut</th>
+              </tr></thead>
+              <tbody id="secretaire-activity-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Couverture régionale -->
         <div class="panel">
           <div class="panel-header">
@@ -1152,6 +1292,40 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           <!-- Détail par région (accordéon) -->
           <div id="dept-coverage-list" style="display:flex;flex-direction:column;gap:8px">
             <div style="text-align:center;color:var(--text3);padding:20px">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           SECTION : DASHBOARD SECRÉTAIRE
+      ══════════════════════════════════════════ -->
+      <div id="section-branch-dashboard" class="section-hidden">
+        <div style="margin-bottom:20px">
+          <h2 style="font-size:1.1rem;font-weight:700;color:var(--text)">📋 Mon tableau de bord</h2>
+          <p style="font-size:.82rem;color:var(--text3);margin-top:4px" id="branch-dash-subtitle">Bienvenue</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:18px">
+          <div class="branch-stat-card"><div class="branch-stat-icon">📝</div><div><div class="branch-stat-val" id="bds-total">—</div><div class="branch-stat-lbl">Rapports soumis</div></div></div>
+          <div class="branch-stat-card"><div class="branch-stat-icon">✅</div><div><div class="branch-stat-val" id="bds-approved" style="color:var(--green)">—</div><div class="branch-stat-lbl">Approuvés</div></div></div>
+          <div class="branch-stat-card"><div class="branch-stat-icon">⏳</div><div><div class="branch-stat-val" id="bds-pending" style="color:var(--orange)">—</div><div class="branch-stat-lbl">En attente</div></div></div>
+          <div class="branch-stat-card"><div class="branch-stat-icon">❌</div><div><div class="branch-stat-val" id="bds-rejected" style="color:var(--red)">—</div><div class="branch-stat-lbl">Rejetés</div></div></div>
+        </div>
+        <div class="panel" style="padding:18px 22px">
+          <div class="panel-title" style="margin-bottom:14px;font-size:.88rem">📍 Ma localisation assignée</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div><span style="font-size:.75rem;color:var(--text3)">Région</span><br><strong id="bds-region" style="font-size:.92rem">—</strong></div>
+            <div><span style="font-size:.75rem;color:var(--text3)">Département</span><br><strong id="bds-dept" style="font-size:.92rem;color:var(--blue)">—</strong></div>
+          </div>
+        </div>
+        <div class="panel" style="padding:18px 22px;margin-top:14px">
+          <div class="panel-title" style="margin-bottom:12px;font-size:.88rem">📂 Mes rapports récents</div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Statut</th></tr></thead>
+            <tbody id="bds-recent-reports"></tbody></table>
+          </div>
+          <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <button class="action-btn green" onclick="showSection('new-report')">+ Nouveau rapport</button>
+            <button class="action-btn blue" onclick="showSection('my-reports')">Voir tous mes rapports</button>
           </div>
         </div>
       </div>
@@ -1247,6 +1421,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
               <tbody id="all-reports-tbody"></tbody>
             </table>
           </div>
+          <div id="reports-pagination" class="pagination"></div>
         </div>
       </div>
 
@@ -1289,6 +1464,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
               <tbody id="users-tbody"></tbody>
             </table>
           </div>
+          <div id="users-pagination" class="pagination"></div>
         </div>
       </div>
 
@@ -1544,6 +1720,48 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="action-btn green" onclick="saveUser()" data-fr="Créer l'utilisateur" data-ar="إنشاء مستخدم">Créer l'utilisateur</button>
       <button class="action-btn gray" onclick="closeModal('modal-user')" data-fr="Annuler" data-ar="إلغاء">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALE MODIFIER UTILISATEUR ═════════════════════════════════════ -->
+<div class="modal-overlay modal-hidden" id="modal-edit-user">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h2>✏️ Modifier l'utilisateur</h2>
+      <button class="close-btn" onclick="closeModal('modal-edit-user')">✕</button>
+    </div>
+    <div id="edit-user-alert" class="alert alert-error" style="display:none"></div>
+    <div class="form-row">
+      <label>Nom complet <span class="form-required">*</span></label>
+      <input type="text" id="eu-name" placeholder="Nom complet"/>
+    </div>
+    <div class="form-row">
+      <label>Email <span class="form-required">*</span></label>
+      <input type="email" id="eu-email" placeholder="email@exemple.ci"/>
+    </div>
+    <div class="form-row">
+      <label>Téléphone</label>
+      <input type="tel" id="eu-phone" placeholder="+225 XX XX XX XX XX"/>
+    </div>
+    <div id="eu-secretary-rows" style="display:none;contents:contents">
+      <div class="form-row">
+        <label>Région</label>
+        <select id="eu-region" onchange="loadDeptsForEditUser()">
+          <option value="">— Sélectionner une région —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Département</label>
+        <select id="eu-dept">
+          <option value="">— Sélectionner d'abord une région —</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" id="eu-uid"/>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="action-btn green" onclick="saveEditUser()">💾 Enregistrer</button>
+      <button class="action-btn gray" onclick="closeModal('modal-edit-user')">Annuler</button>
     </div>
   </div>
 </div>
@@ -2089,22 +2307,15 @@ async function loadMapPoints() {
   try {
     const stats = await api('GET', '/map/stats');
     STATE.markersLayer.clearLayers();
+    window._mapBranchData = stats.points || [];
     stats.points.forEach(p => {
+      if (!p.latitude || !p.longitude) return;
       const color = p.status==='active' ? '#00A859' : p.status==='pending' ? '#F77F00' : '#CE1126';
       const m = L.circleMarker([p.latitude, p.longitude], {
         radius:11, fillColor:color, color:'#fff', weight:2.5, opacity:1, fillOpacity:.88
       });
-      m.bindPopup(`
-        <div style="min-width:210px;font-family:Segoe UI,Arial">
-          <div style="font-weight:800;color:#006B3F;font-size:1rem;margin-bottom:8px">${p.name}</div>
-          <div style="font-size:.82rem;color:#555;margin-bottom:4px">📍 ${p.city}</div>
-          <div style="margin-bottom:6px">
-            <span style="background:${color};color:#fff;padding:3px 10px;border-radius:10px;font-size:.75rem;font-weight:700">${p.status}</span>
-            ${p.is_verified?'<span style="background:#e6f4ed;color:#006B3F;padding:3px 10px;border-radius:10px;font-size:.75rem;font-weight:700;margin-left:6px">✓ Vérifié</span>':''}
-          </div>
-          ${p.region_name?`<div style="font-size:.8rem;color:#888">🗾 ${p.region_name}</div>`:''}
-          <div style="font-size:.8rem;color:#888;margin-top:4px">📋 ${p.report_count} rapport(s)</div>
-        </div>`);
+      m.on('click', () => openMapPanel(p));
+      m.bindTooltip(p.name, { direction:'top', offset:[0,-12] });
       STATE.markersLayer.addLayer(m);
     });
   } catch(e) { console.error(e); }
@@ -2627,38 +2838,62 @@ async function saveBranch() {
 // ADMIN: RAPPORTS
 // ═══════════════════════════════════════════════════════
 async function loadAllReports() {
-  const tbody  = document.getElementById('all-reports-tbody');
-  const filter = document.getElementById('report-filter-status').value;
-  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('loading')}</td></tr>`;
+  const tbody = document.getElementById('all-reports-tbody');
+  if (tbody) tbody.innerHTML = Array(4).fill(`<tr class="skeleton-row">${Array(6).fill('<td><div class="skeleton skeleton-cell w70"></div></td>').join('')}</tr>`).join('');
   try {
-    const reports = await api('GET', '/reports');
-    let filtered = reports || [];
-    if (filter) filtered = filtered.filter(r => r.status === filter);
-    if (!filtered.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; return; }
-    tbody.innerHTML = filtered.map(r => `
+    _allReportsCached = await api('GET', '/reports') || [];
+    const regSel = document.getElementById('report-filter-region');
+    if (regSel && regSel.options.length === 1) {
+      const names = [...new Set(_allReportsCached.map(r => r.region_name).filter(Boolean))].sort();
+      names.forEach(n => { const o = document.createElement('option'); o.value=n; o.textContent=n; regSel.appendChild(o); });
+    }
+    applyReportFilters();
+  } catch(e) { if(tbody) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red);padding:12px">${e.message}</td></tr>`; }
+}
+
+function applyReportFilters() {
+  const status = document.getElementById('report-filter-status')?.value || '';
+  const region = document.getElementById('report-filter-region')?.value || '';
+  const date   = document.getElementById('report-filter-date')?.value || '';
+  const search = (document.getElementById('report-search')?.value || '').toLowerCase();
+  let filtered = _allReportsCached;
+  if (status) filtered = filtered.filter(r => r.status === status);
+  if (region) filtered = filtered.filter(r => (r.region_name||'') === region);
+  if (date)   filtered = filtered.filter(r => r.created_at && r.created_at.startsWith(date));
+  if (search) filtered = filtered.filter(r =>
+    (r.title||'').toLowerCase().includes(search) ||
+    (r.branch_name||'').toLowerCase().includes(search)
+  );
+  _reportPage = 1;
+  renderReportsPaged(filtered);
+}
+
+function renderReportsPaged(filtered) {
+  const pages = Math.ceil(filtered.length / _reportPageSize) || 1;
+  const slice = filtered.slice((_reportPage-1)*_reportPageSize, _reportPage*_reportPageSize);
+  const tbody = document.getElementById('all-reports-tbody');
+  if (!slice.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; renderPagination('reports-pagination',1,1,()=>{}); return; }
+  tbody.innerHTML = slice.map(r => `
       <tr>
         <td>
           <div style="display:flex;align-items:center;gap:7px">
-            ${!r.viewed_by_admin&&r.status==='submitted'?`<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0;box-shadow:0 0 0 3px rgba(247,127,0,.2)" title="${STATE.lang==='fr'?'Non lu':'Unread'}"></span>`:''}
+            ${!r.viewed_by_admin&&r.status==='submitted'?'<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0"></span>':''}
             <strong>${r.title}</strong>
           </div>
         </td>
-        <td><code style="font-size:.78rem;background:var(--gray);padding:2px 6px;border-radius:4px">${r.branch_id ? r.branch_id.slice(0,8)+'…' : '—'}</code></td>
+        <td style="font-size:.8rem;color:var(--text2)">${r.branch_name||'—'}</td>
         <td>${r.report_type}</td>
         <td>${r.created_at ? new Date(r.created_at).toLocaleDateString(STATE.lang==='fr'?'fr-CI':'en-US') : '—'}</td>
         <td><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></td>
         <td>
           <div class="btn-group">
-            <button class="action-btn outline" onclick="showReportDetail('${r.id}')" data-fr="Voir" data-ar="عرض">Voir</button>
-            ${r.status==='submitted'?`
-              <button class="action-btn green" onclick="reviewReport('${r.id}','approved')" title="Approuver">✅ Approuver</button>
-              <button class="action-btn red"   onclick="openRejectModal('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')" title="Rejeter">❌ Rejeter</button>`:''
-            }
-            ${r.status==='rejected'&&r.branch_response?`<span style="font-size:.72rem;background:#e3f2fd;color:#1565C0;padding:2px 8px;border-radius:10px;font-weight:700" data-fr="Réponse reçue" data-ar="تم استلام الرد">💬 Réponse</span>`:''}
+            <button class="action-btn outline" onclick="showReportDetail('${r.id}')">Voir</button>
+            ${r.status==='submitted'?`<button class="action-btn green" onclick="reviewReport('${r.id}','approved')">✅</button><button class="action-btn red" onclick="openRejectModal('${r.id}','${(r.title||'').replace(/'/g,"\'")}')">❌</button>`:''}
+            ${r.status==='rejected'&&r.branch_response?'<span style="font-size:.72rem;color:var(--blue)">💬 Réponse</span>':''}
           </div>
         </td>
       </tr>`).join('');
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">${e.message}</td></tr>`; }
+  renderPagination('reports-pagination', _reportPage, pages, (p) => { _reportPage = p; renderReportsPaged(filtered); });
 }
 
 // Approbation directe
@@ -2837,15 +3072,47 @@ function filterRegions() {
   renderRegionsTable(filtered);
 }
 
+// Pagination state
+let _userPage = 1; const _userPageSize = 20;
+let _reportPage = 1; const _reportPageSize = 20;
+let _allReportsCached = [];
+
 async function loadUsers() {
   const tbody = document.getElementById('users-tbody');
-  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('loading')}</td></tr>`;
+  if (tbody) tbody.innerHTML = Array(5).fill(`<tr class="skeleton-row">${Array(7).fill('<td><div class="skeleton skeleton-cell w70"></div></td>').join('')}</tr>`).join('');
   try {
     const users = await api('GET', '/admin/users');
-    if (!users||!users.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; return; }
+    if (!users||!users.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">${t('no_data')}</td></tr>`; return; }
     window._usersCache = users;
-    renderUsersTable(users);
+    _userPage = 1;
+    renderUsersTablePaged();
   } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">${e.message}</td></tr>`; }
+}
+
+function renderUsersTablePaged() {
+  const users = window._usersCache || [];
+  const total = users.length;
+  const pages = Math.ceil(total / _userPageSize);
+  const slice = users.slice((_userPage-1)*_userPageSize, _userPage*_userPageSize);
+  renderUsersTable(slice);
+  renderPagination('users-pagination', _userPage, pages, (p) => { _userPage = p; renderUsersTablePaged(); });
+}
+
+function filterUsers() {
+  const q = document.getElementById('users-search').value.toLowerCase();
+  const filtered = (window._usersCache||[]).filter(u =>
+    u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
+  );
+  window._usersFiltered = filtered;
+  _userPage = 1;
+  const total = filtered.length;
+  const pages = Math.ceil(total / _userPageSize);
+  renderUsersTable(filtered.slice(0, _userPageSize));
+  renderPagination('users-pagination', 1, pages, (p) => {
+    _userPage = p;
+    renderUsersTable(filtered.slice((p-1)*_userPageSize, p*_userPageSize));
+    renderPagination('users-pagination', p, pages, arguments.callee);
+  });
 }
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -2857,13 +3124,6 @@ function fmtDate(iso) {
   if (diff < 1440) return `Il y a ${Math.floor(diff/60)}h`;
   if (diff < 2880) return 'Hier';
   return d.toLocaleDateString('fr-FR', {day:'2-digit',month:'short'});
-}
-function filterUsers() {
-  const q = document.getElementById('users-search').value.toLowerCase();
-  const filtered = (window._usersCache||[]).filter(u =>
-    u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
-  );
-  renderUsersTable(filtered);
 }
 function renderUsersTable(users) {
   const tbody = document.getElementById('users-tbody');
@@ -3747,6 +4007,355 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch(e) { doLogout(); }
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// 🍞 TOAST NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════
+function showToast(msg, type='info', duration=4000) {
+  const ct = document.getElementById('toast-container');
+  if (!ct) { console.warn(msg); return; }
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span>${msg}</span><span class="toast-close" onclick="this.parentElement.remove()">✕</span>`;
+  ct.appendChild(toast);
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, duration);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🎨 AVATAR / INITIALES
+// ══════════════════════════════════════════════════════════════
+const AVATAR_COLORS = [
+  '#e040fb','#00e676','#448aff','#ff9100','#ff1744','#00b0ff','#69f0ae','#ffab40'
+];
+function avatarHTML(name, small=false) {
+  const initials = (name||'?').split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase() || '?';
+  const color = AVATAR_COLORS[(name||'').charCodeAt(0) % AVATAR_COLORS.length];
+  const cls = small ? 'user-avatar user-avatar-sm' : 'user-avatar';
+  return `<span class="${cls}" style="background:${color}22;color:${color};border:1.5px solid ${color}44">${initials}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🌓 THÈME CLAIR / SOMBRE
+// ══════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('codiss_theme', isLight ? 'light' : 'dark');
+  const icon  = document.getElementById('theme-icon');
+  const label = document.getElementById('theme-label');
+  if (icon)  icon.textContent  = isLight ? '☀️' : '🌙';
+  if (label) label.textContent = isLight ? 'Sombre' : 'Clair';
+}
+// Appliquer le thème sauvegardé au chargement
+(function() {
+  const saved = localStorage.getItem('codiss_theme');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+    setTimeout(() => {
+      const icon  = document.getElementById('theme-icon');
+      const label = document.getElementById('theme-label');
+      if (icon)  icon.textContent  = '☀️';
+      if (label) label.textContent = 'Sombre';
+    }, 100);
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════
+// 📄 PAGINATION GÉNÉRIQUE
+// ══════════════════════════════════════════════════════════════
+function renderPagination(containerId, currentPage, totalPages, onPageChange) {
+  const el = document.getElementById(containerId);
+  if (!el || totalPages <= 1) { if(el) el.innerHTML=''; return; }
+  let html = `<button class="page-btn" ${currentPage===1?'disabled':''} onclick="(${onPageChange.toString()})(${currentPage-1})">‹</button>`;
+  const range = [];
+  for (let i=1; i<=totalPages; i++) {
+    if (i===1||i===totalPages||Math.abs(i-currentPage)<=1) range.push(i);
+    else if (range[range.length-1] !== '…') range.push('…');
+  }
+  range.forEach(p => {
+    if (p==='…') html += `<span class="page-info">…</span>`;
+    else html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="(${onPageChange.toString()})(${p})">${p}</button>`;
+  });
+  html += `<button class="page-btn" ${currentPage===totalPages?'disabled':''} onclick="(${onPageChange.toString()})(${currentPage+1})">›</button>`;
+  html += `<span class="page-info">${currentPage}/${totalPages}</span>`;
+  el.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ✏️  MODIFIER UN UTILISATEUR
+// ══════════════════════════════════════════════════════════════
+async function openEditUserModal(uid, name, email, phone, role, regionId, departmentId) {
+  document.getElementById('eu-uid').value    = uid;
+  document.getElementById('eu-name').value   = name;
+  document.getElementById('eu-email').value  = email;
+  document.getElementById('eu-phone').value  = phone || '';
+  document.getElementById('edit-user-alert').style.display = 'none';
+  const secRows = document.getElementById('eu-secretary-rows');
+  if (secRows) secRows.style.display = role === 'branch' ? 'contents' : 'none';
+  if (role === 'branch') {
+    await loadRegionsForEditUser();
+    if (regionId) {
+      const regSel = document.getElementById('eu-region');
+      if (regSel) regSel.value = regionId;
+      await loadDeptsForEditUser();
+      const deptSel = document.getElementById('eu-dept');
+      if (deptSel && departmentId) deptSel.value = departmentId;
+    }
+  }
+  document.getElementById('modal-edit-user').classList.remove('modal-hidden');
+}
+
+async function loadRegionsForEditUser() {
+  const sel = document.getElementById('eu-region');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Sélectionner une région —</option>';
+  document.getElementById('eu-dept').innerHTML = `<option value="">— Sélectionner d'abord une région —</option>`;
+  try {
+    const regions = await api('GET', '/map/regions');
+    regions.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id; opt.textContent = r.name_fr;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+async function loadDeptsForEditUser() {
+  const regionId = document.getElementById('eu-region').value;
+  const dsel = document.getElementById('eu-dept');
+  dsel.innerHTML = '<option value="">Chargement…</option>';
+  if (!regionId) { dsel.innerHTML = `<option value="">— Sélectionner d'abord une région —</option>`; return; }
+  try {
+    const regions = await api('GET', '/map/regions-with-departments');
+    const reg = regions.find(r => String(r.id) === String(regionId));
+    dsel.innerHTML = '<option value="">— Sélectionner un département —</option>';
+    if (reg && reg.departments) {
+      reg.departments.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id; opt.textContent = d.name_fr;
+        dsel.appendChild(opt);
+      });
+    }
+  } catch(e) { dsel.innerHTML = '<option value="">Erreur</option>'; }
+}
+
+async function saveEditUser() {
+  const uid   = document.getElementById('eu-uid').value;
+  const alertEl = document.getElementById('edit-user-alert');
+  const payload = {
+    full_name:     document.getElementById('eu-name').value.trim(),
+    email:         document.getElementById('eu-email').value.trim(),
+    phone:         document.getElementById('eu-phone').value.trim() || null,
+    region_id:     parseInt(document.getElementById('eu-region')?.value) || null,
+    department_id: parseInt(document.getElementById('eu-dept')?.value) || null,
+  };
+  if (!payload.full_name || !payload.email) {
+    alertEl.className='alert alert-error'; alertEl.textContent='Nom et email sont obligatoires.'; alertEl.style.display='block'; return;
+  }
+  try {
+    await api('PUT', `/admin/users/${uid}`, payload);
+    closeModal('modal-edit-user');
+    showToast('Utilisateur mis à jour ✓', 'success');
+    loadUsers();
+  } catch(e) {
+    alertEl.className='alert alert-error'; alertEl.textContent=e.message; alertEl.style.display='block';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 📊 DASHBOARD SECRÉTAIRE
+// ══════════════════════════════════════════════════════════════
+async function loadBranchDashboard() {
+  try {
+    const u = STATE.user;
+    const subtitle = document.getElementById('branch-dash-subtitle');
+    if (subtitle) subtitle.textContent = `Bonjour, ${u.name} 👋`;
+
+    // Stats rapports personnels
+    const reports = await api('GET', '/reports/my') || [];
+    const total    = reports.length;
+    const approved = reports.filter(r => r.status === 'approved').length;
+    const pending  = reports.filter(r => r.status === 'submitted').length;
+    const rejected = reports.filter(r => r.status === 'rejected').length;
+
+    const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    setVal('bds-total',    total);
+    setVal('bds-approved', approved);
+    setVal('bds-pending',  pending);
+    setVal('bds-rejected', rejected);
+
+    // Localisation
+    try {
+      const me = await api('GET', '/auth/me');
+      if (me) {
+        setVal('bds-region', me.region_name || '—');
+        setVal('bds-dept',   me.department_name || 'Non assigné');
+      }
+    } catch(e) {}
+
+    // Rapports récents
+    const tbody = document.getElementById('bds-recent-reports');
+    if (tbody) {
+      const recent = reports.slice(0, 5);
+      if (!recent.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Aucun rapport soumis pour l'instant</td></tr>';
+      } else {
+        tbody.innerHTML = recent.map(r => `<tr>
+          <td><strong>${r.title}</strong></td>
+          <td style="font-size:.78rem">${r.report_type}</td>
+          <td style="font-size:.78rem">${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</td>
+          <td><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></td>
+        </tr>`).join('');
+      }
+    }
+  } catch(e) { console.error('loadBranchDashboard:', e); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 📊 ACTIVITÉ SECRÉTAIRES (admin)
+// ══════════════════════════════════════════════════════════════
+async function loadSecretaireActivity() {
+  const tbody = document.getElementById('secretaire-activity-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = Array(3).fill(`<tr class="skeleton-row">${Array(6).fill('<td><div class="skeleton skeleton-cell w70"></div></td>').join('')}</tr>`).join('');
+  try {
+    const data = await api('GET', '/admin/secretaire-activity');
+    if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Aucun secrétaire trouvé</td></tr>'; return; }
+    const maxR = Math.max(...data.map(d => d.total_reports), 1);
+    tbody.innerHTML = data.map((d, i) => {
+      const pct = Math.round((d.total_reports / maxR) * 100);
+      const color = d.total_reports === 0 ? 'var(--red)' : pct > 50 ? 'var(--green2)' : 'var(--orange)';
+      return `<tr>
+        <td><div style="display:flex;align-items:center;gap:8px">${avatarHTML(d.full_name, true)}<div><div style="font-weight:600;font-size:.85rem">${d.full_name}</div><div style="font-size:.72rem;color:var(--text3)">${d.email}</div></div></div></td>
+        <td style="font-size:.8rem;color:var(--blue)">${d.department_name||'—'}<br><span style="color:var(--text3);font-size:.72rem">${d.region_name||''}</span></td>
+        <td style="font-weight:700;color:${color}">${d.total_reports}</td>
+        <td style="min-width:100px"><div style="background:var(--bg4);border-radius:3px;height:6px"><div class="activity-bar" style="width:${pct}%;background:${color}"></div></div></td>
+        <td style="font-size:.78rem;color:var(--text3)">${d.last_report ? fmtDate(d.last_report) : '<em>Jamais</em>'}</td>
+        <td>${d.is_active?'<span class="badge-status badge-active">Actif</span>':'<span class="badge-status badge-rejected">Inactif</span>'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red);padding:12px">${e.message}</td></tr>`; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🗺️  MAP SIDE PANEL
+// ══════════════════════════════════════════════════════════════
+function openMapPanel(branch) {
+  const panel   = document.getElementById('map-side-panel');
+  const wrapper = document.getElementById('map-wrapper');
+  const content = document.getElementById('map-panel-content');
+  if (!panel) return;
+  const statusColors = { active:'var(--green)', pending:'var(--orange)', suspended:'var(--red)', rejected:'var(--red)' };
+  const color = statusColors[branch.status] || 'var(--text3)';
+  content.innerHTML = `
+    <div style="font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:4px">${branch.name}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px">
+      <span class="badge-status badge-${branch.status}" style="font-size:.72rem">${branch.status}</span>
+      ${branch.is_verified ? '<span style="font-size:.72rem;background:rgba(224,64,251,.2);color:var(--purple);padding:2px 8px;border-radius:10px">✓ Vérifié</span>' : ''}
+    </div>
+    <div style="display:grid;gap:10px;font-size:.82rem">
+      <div><span style="color:var(--text3)">Code</span><br><code style="font-size:.8rem">${branch.code}</code></div>
+      <div><span style="color:var(--text3)">Ville</span><br><strong>${branch.city}</strong></div>
+      ${branch.president_name ? `<div><span style="color:var(--text3)">Président</span><br><strong>${branch.president_name}</strong></div>` : ''}
+      ${branch.president_phone ? `<div><span style="color:var(--text3)">Téléphone</span><br><a href="tel:${branch.president_phone}" style="color:var(--green)">${branch.president_phone}</a></div>` : ''}
+      <div><span style="color:var(--text3)">Membres</span><br><strong>${branch.member_count || 0}</strong></div>
+      ${branch.address ? `<div><span style="color:var(--text3)">Adresse</span><br>${branch.address}</div>` : ''}
+    </div>
+    <button class="action-btn outline" style="margin-top:16px;width:100%" onclick="showSection('branches')">Voir toutes les branches</button>`;
+  panel.classList.add('open');
+  if (wrapper) wrapper.classList.add('panel-open');
+  if (STATE.map) setTimeout(() => STATE.map.invalidateSize(), 320);
+}
+
+function closeMapPanel() {
+  const panel   = document.getElementById('map-side-panel');
+  const wrapper = document.getElementById('map-wrapper');
+  if (panel)   panel.classList.remove('open');
+  if (wrapper) wrapper.classList.remove('panel-open');
+  if (STATE.map) setTimeout(() => STATE.map.invalidateSize(), 320);
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIX DASHBOARD VIEWER
+// ══════════════════════════════════════════════════════════════
+async function loadViewerDashboard() {
+  try {
+    const stats = await api('GET', '/map/stats');
+    const setEl = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+    setEl('st-total',    stats.total_branches);
+    setEl('st-active',   stats.active_branches);
+    setEl('st-pending',  stats.pending_branches);
+    setEl('st-regions',  `${stats.covered_regions}/${stats.total_regions}`);
+    setEl('st-coverage', stats.coverage_pct + '%');
+    // Cacher les panels admin
+    ['secretaire-activity-panel','dept-coverage-panel','charts-row','online-users-panel'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.style.display='none';
+    });
+    try {
+      const coverage = await api('GET', '/map/coverage-summary');
+      renderCoverageList(coverage);
+    } catch(e) {}
+  } catch(e) { console.error('loadViewerDashboard:', e); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIX PROFILE SECRÉTAIRE (afficher région/dept)
+// ══════════════════════════════════════════════════════════════
+const _origLoadProfile = loadProfile;
+loadProfile = async function() {
+  _origLoadProfile();
+  const u = STATE.user;
+  const geoPanel = document.getElementById('profile-geo-panel');
+  if (u.role === 'branch' && geoPanel) {
+    geoPanel.style.display = 'block';
+    try {
+      const me = await api('GET', '/auth/me');
+      if (me) {
+        const regEl  = document.getElementById('profile-region');
+        const deptEl = document.getElementById('profile-dept');
+        if (regEl)  regEl.textContent  = me.region_name  || '—';
+        if (deptEl) deptEl.textContent = me.department_name || 'Non assigné';
+      }
+    } catch(e) {}
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// FIX DASHBOARD : appel viewer si rôle viewer
+// ══════════════════════════════════════════════════════════════
+const _origLoadDashboard = loadDashboard;
+loadDashboard = async function() {
+  if (STATE.user && STATE.user.role === 'viewer') {
+    return loadViewerDashboard();
+  }
+  // Admin/superadmin : afficher panel activité secrétaires
+  const actPanel = document.getElementById('secretaire-activity-panel');
+  if (actPanel) { actPanel.style.display = 'block'; loadSecretaireActivity(); }
+  return _origLoadDashboard();
+};
+
+// ══════════════════════════════════════════════════════════════
+// FIX MAP : ouvrir side panel au clic sur marker
+// ══════════════════════════════════════════════════════════════
+const _origLoadMapPoints = loadMapPoints;
+loadMapPoints = async function() {
+  await _origLoadMapPoints();
+  // Re-binder les markers pour ouvrir le panel
+  if (STATE.markersLayer && window._mapBranchData) {
+    STATE.markersLayer.clearLayers();
+    window._mapBranchData.forEach(p => {
+      if (!p.latitude || !p.longitude) return;
+      const colors = { active:'#00c853', pending:'#ff9100', suspended:'#ff1744', rejected:'#ff1744' };
+      const m = L.circleMarker([p.latitude, p.longitude], {
+        radius: 8, fillColor: colors[p.status] || '#888',
+        color: '#fff', weight: 2, opacity: 1, fillOpacity: .85
+      });
+      m.on('click', () => openMapPanel(p));
+      m.bindTooltip(p.name, { direction:'top', offset:[0,-8] });
+      STATE.markersLayer.addLayer(m);
+    });
+  }
+};
 </script>
 
 <!-- ══ MODALE INACTIVITÉ ══════════════════════════════════════════ -->
