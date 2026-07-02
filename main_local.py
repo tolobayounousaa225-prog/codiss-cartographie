@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date as _date
 from typing import Optional, List
-import uuid, os, random, string, secrets, smtplib, ssl, asyncio, urllib.request, urllib.error, base64, json as _json
+import uuid, os, random, string, secrets, smtplib, ssl, asyncio, urllib.request, urllib.error, base64, json as _json, calendar
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -196,8 +196,8 @@ async def backup_users_to_github(db=None):
             conn.row_factory = _sqlite3.Row
             cur = conn.cursor()
             cur.execute(
-                "SELECT email, password_hash, full_name, phone, role, language, "
-                "is_active, must_set_password FROM users "
+                "SELECT email, password_hash, plain_password, full_name, phone, role, language, "
+                "is_active, must_set_password, region_id, department_id FROM users "
                 "WHERE role != 'superadmin' ORDER BY created_at"
             )
             rows = [dict(r) for r in cur.fetchall()]
@@ -254,10 +254,13 @@ async def restore_users_from_github():
                 if ex: continue
                 db.add(User(
                     email=ud["email"], password_hash=ud["password_hash"],
+                    plain_password=ud.get("plain_password"),
                     full_name=ud["full_name"], phone=ud.get("phone"),
                     role=ud.get("role","branch"), language=ud.get("language","fr"),
                     is_active=ud.get("is_active", True),
                     must_set_password=ud.get("must_set_password", False),
+                    region_id=ud.get("region_id"),
+                    department_id=ud.get("department_id"),
                 ))
                 restored += 1
             if restored > 0:
@@ -467,7 +470,7 @@ async def create_branch(data: dict, db: AsyncSession = Depends(get_db), _=Depend
     return _branch_dict(b)
 
 @app.patch("/api/branches/{bid}")
-async def update_branch(bid: str, data: dict, db: AsyncSession = Depends(get_db), _=Depends(current_user)):
+async def update_branch(bid: str, data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404)
     for k, v in data.items():
@@ -500,6 +503,7 @@ async def assign_user(bid: str, user_id: str, role: str = "secretary", db: Async
         await db.delete(old)
     bu = BranchUser(user_id=user_id, branch_id=bid, role=role)
     db.add(bu)
+    await db.commit()
     return {"ok": True, "user": u.full_name, "branch": b.name}
 
 def _branch_dict(b):
@@ -776,7 +780,6 @@ async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only))
             key = dt.strftime("%Y-%m")
             monthly[key] = monthly.get(key, 0) + 1
     # Trier les 6 derniers mois
-    import calendar
     months_labels = []
     months_data = []
     for i in range(5, -1, -1):
@@ -1104,8 +1107,6 @@ async def self_select_branch(data: dict, u: User = Depends(current_user), db: As
 # ══════════════════════════════════════════════════════
 # RÉCUPÉRATION D'ACCÈS
 # ══════════════════════════════════════════════════════
-import random, string
-
 def gen_temp_password(length=10):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choices(chars, k=length))
@@ -1122,6 +1123,7 @@ async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "Aucun compte trouvé pour cet email.")
     temp = gen_temp_password()
     u.password_hash = hash_password(temp)
+    u.plain_password = temp
     await db.commit()
     return {"ok": True, "full_name": u.full_name, "temp_password": temp,
             "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."}
