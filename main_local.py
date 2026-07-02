@@ -28,7 +28,7 @@ def parse_date(val):
 from database_local import engine, Base, get_db, AsyncSessionLocal
 from models_local import (
     User, Branch, BranchUser, PresenceReport,
-    ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession
+    ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession, Department
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, distinct
@@ -318,7 +318,7 @@ async def health():
     from fastapi.responses import JSONResponse
     from database_local import DB_MODE
     return JSONResponse(
-        content={"status": "ok", "mode": DB_MODE, "version": "role-change-fix"},
+        content={"status": "ok", "mode": DB_MODE, "version": "departments-fix"},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
     )
 
@@ -658,6 +658,39 @@ def _report_dict(r):
 # ══════════════════════════════════════════════════════
 # MAP
 # ══════════════════════════════════════════════════════
+
+@app.get("/api/regions/{code}/departments")
+async def get_region_departments(code: str, db: AsyncSession = Depends(get_db), _=Depends(current_user)):
+    """Retourne les départements/communes d'une région donnée (par code)."""
+    region = (await db.execute(select(Region).where(Region.code == code.upper()))).scalar_one_or_none()
+    if not region:
+        raise HTTPException(404, f"Région '{code}' introuvable")
+    depts = (await db.execute(
+        select(Department).where(Department.region_id == region.id).order_by(Department.name_fr)
+    )).scalars().all()
+    return {
+        "region_code": region.code,
+        "region_name": region.name_fr,
+        "district": region.district,
+        "departments": [{"code": d.code, "name_fr": d.name_fr, "name_en": d.name_en} for d in depts]
+    }
+
+@app.get("/api/regions/all-with-departments")
+async def all_regions_with_departments(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
+    """Retourne toutes les régions avec leurs départements."""
+    regions = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
+    result = []
+    for r in regions:
+        depts = (await db.execute(
+            select(Department).where(Department.region_id == r.id).order_by(Department.name_fr)
+        )).scalars().all()
+        result.append({
+            "code": r.code, "name_fr": r.name_fr, "name_en": r.name_en,
+            "district": r.district,
+            "departments": [{"code": d.code, "name_fr": d.name_fr} for d in depts]
+        })
+    return result
+
 @app.get("/api/map/stats")
 async def map_stats(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
     total    = (await db.execute(select(func.count()).select_from(Branch))).scalar() or 0

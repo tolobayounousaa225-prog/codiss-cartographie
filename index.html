@@ -1277,6 +1277,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <input id="regions-search" type="text" placeholder="🔍 Rechercher une région…" oninput="filterRegions()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:.83rem;outline:none;min-width:220px;">
+              <button class="btn-pdf" onclick="exportRegionsExcel()" title="Exporter Excel">📊 Excel</button>
               <button class="btn-pdf" onclick="exportPDF('coverage')" title="Exporter PDF">📄 PDF</button>
             </div>
           </div>
@@ -1309,6 +1310,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
                 <th>Branches</th>
                 <th>Présence</th>
                 <th>Niveau</th>
+                <th>Départements</th>
               </tr></thead>
               <tbody id="regions-tbody">
                 <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3)">Chargement…</td></tr>
@@ -2631,17 +2633,19 @@ async function loadRegions() {
   }
 }
 
+let _deptCache = {};
+
 function renderRegionsTable(list) {
   const tbody = document.getElementById('regions-tbody');
   if (!list || !list.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3)">Aucune région trouvée</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3)">Aucune région trouvée</td></tr>';
     return;
   }
   const levelLabel = l => l==='high'?'<span style="color:var(--green2);font-weight:700">● Élevée</span>':
                            l==='medium'?'<span style="color:var(--orange);font-weight:700">● Moyenne</span>':
                            '<span style="color:var(--red);opacity:.7">○ Aucune</span>';
   tbody.innerHTML = list.map((r, i) => `
-    <tr>
+    <tr id="rrow-${r.code}">
       <td style="color:var(--text3);font-size:.8rem">${i+1}</td>
       <td style="font-weight:600">${r.name_fr || r.name_en}</td>
       <td style="color:var(--text2);font-size:.85rem">${r.district || '—'}</td>
@@ -2650,7 +2654,59 @@ function renderRegionsTable(list) {
       </td>
       <td style="text-align:center">${r.has_presence ? '✅' : '<span style="opacity:.4">—</span>'}</td>
       <td>${levelLabel(r.coverage_level)}</td>
+      <td>
+        <button class="action-btn" style="font-size:.72rem;padding:3px 8px" onclick="toggleDepts('${r.code}')">
+          🏙️ Voir
+        </button>
+        <div id="depts-${r.code}" style="display:none;margin-top:6px"></div>
+      </td>
     </tr>`).join('');
+}
+
+async function toggleDepts(code) {
+  const el = document.getElementById(`depts-${code}`);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if (_deptCache[code]) { renderDepts(code, _deptCache[code]); return; }
+  el.innerHTML = '<span style="color:var(--text3);font-size:.75rem">Chargement…</span>';
+  try {
+    const data = await api('GET', `/regions/${code}/departments`);
+    _deptCache[code] = data.departments || [];
+    renderDepts(code, _deptCache[code]);
+  } catch(e) {
+    el.innerHTML = '<span style="color:var(--red);font-size:.75rem">Erreur</span>';
+  }
+}
+
+function renderDepts(code, depts) {
+  const el = document.getElementById(`depts-${code}`);
+  if (!el) return;
+  if (!depts.length) { el.innerHTML = '<span style="color:var(--text3);font-size:.75rem">Aucun département enregistré</span>'; return; }
+  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 0">` +
+    depts.map(d => `<span style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:.72rem;color:var(--text2)">${d.name_fr}</span>`).join('') +
+    `</div>`;
+}
+
+async function exportRegionsExcel() {
+  try {
+    const data = await api('GET', '/regions/all-with-departments');
+    let csv = 'Région,District,Département/Commune\n';
+    data.forEach(r => {
+      if (r.departments.length === 0) {
+        csv += `"${r.name_fr}","${r.district || ''}","—"\n`;
+      } else {
+        r.departments.forEach(d => {
+          csv += `"${r.name_fr}","${r.district || ''}","${d.name_fr}"\n`;
+        });
+      }
+    });
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = 'CODISS_Regions_Departements.csv';
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Erreur export: ' + e.message); }
 }
 
 function filterRegions() {

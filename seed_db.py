@@ -82,6 +82,20 @@ async def do_seed(db: AsyncSession):
         await db.flush()
 
     all_regions = (await db.execute(Region.__table__.select())).fetchall()
+
+    # ── Départements liés aux régions ──────────────────────────
+    existing_depts = (await db.execute(Department.__table__.select())).fetchall()
+    if not existing_depts:
+        print("  → Création des départements/communes par région...")
+        region_code_to_id = {row[1]: row[0] for row in all_regions}  # code→id
+        for region_code, depts in DEPARTMENTS_BY_REGION.items():
+            rid = region_code_to_id.get(region_code)
+            if not rid: continue
+            for code, name_fr, name_en in depts:
+                db.add(Department(code=code, name_fr=name_fr, name_en=name_en, region_id=rid))
+        await db.flush()
+        print(f"  ✅ Départements créés")
+
     for row in all_regions:
         region_map[row.code] = row.id
     print(f"  ✅ {len(region_map)} régions prêtes")
@@ -182,3 +196,45 @@ async def seed():
 
 if __name__ == "__main__":
     asyncio.run(seed())
+
+# ══ Données départements/communes par région ══════════════════════════════
+DEPARTMENTS_BY_REGION = {
+    "ABJ": [
+        ("ABJ-ADJ","Adjamé","Adjamé"),("ABJ-ABO","Abobo","Abobo"),
+        ("ABJ-ATT","Attécoubé","Attécoubé"),("ABJ-COC","Cocody","Cocody"),
+        ("ABJ-KOU","Koumassi","Koumassi"),("ABJ-MAR","Marcory","Marcory"),
+        ("ABJ-PLA","Plateau","Plateau"),("ABJ-PBO","Port-Bouët","Port-Bouët"),
+        ("ABJ-TRE","Treichville","Treichville"),("ABJ-YOP","Yopougon","Yopougon"),
+        ("ABJ-SON","Songon","Songon"),
+    ],
+    "LAG": [("LAG-AGB","Agboville","Agboville"),("LAG-ADZ","Adzopé","Adzopé"),("LAG-TIA","Tiassalé","Tiassalé"),("LAG-SIK","Sikensi","Sikensi")],
+    "COM": [("COM-ABO","Aboisso","Aboisso"),("COM-ADI","Adiaké","Adiaké"),("COM-AYA","Ayamé","Ayamé"),("COM-GBS","Grand-Bassam","Grand-Bassam")],
+    "MON": [("MON-BIA","Biankouma","Biankouma"),("MON-DAN","Danané","Danané"),("MON-ZOU","Zouan-Hounien","Zouan-Hounien"),("MON-SIP","Sipilou","Sipilou")],
+    "BAF": [("BAF-TOU","Touba","Touba"),("BAF-OUA","Ouaninou","Ouaninou")],
+    "BAG": [("BAG-BOU","Boundiali","Boundiali"),("BAG-KOU","Kouto","Kouto"),("BAG-TEN","Tengrela","Tengrela")],
+    "BER": [("BER-MAN","Mankono","Mankono"),("BER-KNA","Kounahiri","Kounahiri"),("BER-DIA","Dianra","Dianra")],
+    "BOU": [("BOU-BON","Bouna","Bouna"),("BOU-DOR","Doropo","Doropo"),("BOU-TEH","Téhini","Téhini"),("BOU-NAS","Nassian","Nassian")],
+    "FOL": [("FOL-MIN","Minignan","Minignan"),("FOL-KAN","Kaniasso","Kaniasso")],
+    "GBK": [("GBK-SAS","Sassandra","Sassandra"),("GBK-FRE","Fresco","Fresco"),("GBK-GBE","Grand-Béréby","Grand-Béréby")],
+    "GOH": [("GOH-GAG","Gagnoa","Gagnoa"),("GOH-OUM","Oumé","Oumé")],
+    "GON": [("GON-BON","Bondoukou","Bondoukou"),("GON-TAN","Tanda","Tanda"),("GON-TRA","Transua","Transua"),("GON-NIB","Niablé","Niablé")],
+    "GPO": [("GPO-DAB","Dabou","Dabou"),("GPO-JAC","Jacqueville","Jacqueville"),("GPO-GLA","Grand-Lahou","Grand-Lahou")],
+    "GUE": [("GUE-DUE","Duékoué","Duékoué"),("GUE-KOB","Kouibly","Kouibly"),("GUE-BAN","Bangolo","Bangolo")],
+    "HAM": [("HAM-KAT","Katiola","Katiola"),("HAM-DAB","Dabakala","Dabakala"),("HAM-NIA","Niakaramadougou","Niakaramadougou")],
+    "HSA": [("HSA-DAL","Daloa","Daloa"),("HSA-ISS","Issia","Issia"),("HSA-VAV","Vavoua","Vavoua"),("HSA-ZOK","Zoukougbeu","Zoukougbeu")],
+    "IFF": [("IFF-DIM","Dimbokro","Dimbokro"),("IFF-MBH","M'Bahiakro","M'Bahiakro"),("IFF-BOC","Bocanda","Bocanda")],
+    "IND": [("IND-ABE","Abengourou","Abengourou"),("IND-AGN","Agnibilékrou","Agnibilékrou"),("IND-BET","Bettié","Bettié")],
+    "KAB": [("KAB-ODI","Odienné","Odienné"),("KAB-BAK","Bako","Bako"),("KAB-GBE","Gbéléban","Gbéléban"),("KAB-SAM","Samatiguila","Samatiguila")],
+    "LAM": [("LAM-ALE","Alépé","Alépé"),("LAM-AKO","Akoupé","Akoupé"),("LAM-YAK","Yakassé-Attobrou","Yakassé-Attobrou")],
+    "LOH": [("LOH-DIV","Divo","Divo"),("LOH-GUI","Guitry","Guitry"),("LOH-LAK","Lakota","Lakota")],
+    "MAR": [("MAR-BOF","Bouaflé","Bouaflé"),("MAR-SIN","Sinfra","Sinfra")],
+    "MOR": [("MOR-MBT","M'Batto","M'Batto"),("MOR-ARR","Arrah","Arrah"),("MOR-ETT","Ettrokro","Ettrokro")],
+    "NZI": [("NZI-DIM","N'Zi-Dimbokro","N'Zi-Dimbokro"),("NZI-BOC","N'Zi-Bocanda","N'Zi-Bocanda"),("NZI-KKS","Kouassi-Kouassikro","Kouassi-Kouassikro")],
+    "POR": [("POR-KOR","Korhogo","Korhogo"),("POR-SIN","Sinématiali","Sinématiali"),("POR-DIK","Dikodougou","Dikodougou"),("POR-MBE","M'Bengué","M'Bengué")],
+    "SAN": [("SAN-SPE","San-Pédro","San-Pedro"),("SAN-TAB","Tabou","Tabou"),("SAN-MEA","Méagui","Méagui")],
+    "SUD": [("SUD-ABO","Sud-Aboisso","Sud-Aboisso"),("SUD-ADI","Sud-Adiaké","Sud-Adiaké"),("SUD-GBS","Sud-Grand-Bassam","Sud-Grand-Bassam")],
+    "TON": [("TON-MAN","Man","Man"),("TON-DAN","Dan-Danané","Dan-Danané"),("TON-BIA","Biankouma-Ton","Biankouma"),("TON-ZOH","Zouan-Hounien","Zouan-Hounien"),("TON-SIP","Sipilou","Sipilou")],
+    "WOR": [("WOR-SEG","Séguéla","Séguéla"),("WOR-KEA","Kéably","Kéably"),("WOR-BOG","Bogopé","Bogopé")],
+    "YAM": [("YAM-YAM","Yamoussoukro","Yamoussoukro"),("YAM-TIE","Tiébissou","Tiébissou"),("YAM-TOU","Toumodi","Toumodi"),("YAM-DID","Didiévi","Didiévi")],
+    "ZUE": [("ZUE-ZUE","Zuénoula","Zuénoula"),("ZUE-KON","Kononfla","Kononfla")],
+}
