@@ -1233,4 +1233,76 @@ async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(
     return {"message": f"{b.name} rejetée"}
 
 @app.delete("/api/admin/users/{uid}")
-async def dele
+async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+    user = await db.get(User, uid)
+    if not user: raise HTTPException(404)
+    await db.delete(user)
+    await db.commit()
+    await backup_users_to_github(db=db)
+    return {"ok": True}
+
+# ══════════════════════════════════════════════════════
+# AUTO-SÉLECTION DE BRANCHE (par le secrétaire lui-même)
+# ══════════════════════════════════════════════════════
+@app.post("/api/auth/me/select-branch")
+async def self_select_branch(data: dict, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if u.role != "branch":
+        raise HTTPException(403, "Réservé aux secrétaires de branche")
+    branch_id = data.get("branch_id")
+    if not branch_id:
+        raise HTTPException(400, "branch_id requis")
+    b = await db.get(Branch, branch_id)
+    if not b:
+        raise HTTPException(404, "Branche introuvable")
+    existing = await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))
+    old = existing.scalar_one_or_none()
+    if old:
+        await db.delete(old)
+        await db.flush()
+    bu = BranchUser(user_id=u.id, branch_id=branch_id, role="secretary")
+    db.add(bu)
+    await db.commit()
+    return {"ok": True, "branch": _branch_dict(b)}
+
+# ══════════════════════════════════════════════════════
+# RÉCUPÉRATION D'ACCÈS
+# ══════════════════════════════════════════════════════
+def gen_temp_password(length=10):
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choices(chars, k=length))
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
+    """Génère un mot de passe temporaire — affiche sur écran (pas d'email en local)."""
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(400, "Email requis")
+    r = await db.execute(select(User).where(User.email == email))
+    u = r.scalar_one_or_none()
+    if not u:
+        raise HTTPException(404, "Aucun compte trouvé pour cet email.")
+    temp = gen_temp_password()
+    u.password_hash = hash_password(temp)
+    u.plain_password = temp
+    await db.commit()
+    return {"ok": True, "full_name": u.full_name, "temp_password": temp,
+            "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."}
+
+@app.post("/api/auth/find-by-name")
+async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
+    """Retrouve un email à partir d'un nom complet (partiel)."""
+    name = (data.get("name") or "").strip()
+    if len(name) < 3:
+        raise HTTPException(400, "Entrez au moins 3 caractères")
+    r = await db.execute(
+        select(User).where(User.full_name.ilike(f"%{name}%")).limit(5)
+    )
+    users = r.scalars().all()
+    if not users:
+        raise HTTPException(404, "Aucun compte trouvé pour ce nom.")
+    def mask_email(email):
+        parts = email.split("@")
+        local = parts[0]
+        shown = local[:2] + "*" * max(2, len(local)-4) + local[-2:] if len(local) > 4 else local[:1] + "***"
+        return shown + "@" + parts[1]
+    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
