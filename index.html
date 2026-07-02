@@ -2933,7 +2933,7 @@ async function openNewUserModal() {
 async function loadRegionsForUserModal() {
   const sel = document.getElementById('u-region');
   sel.innerHTML = '<option value="">— Sélectionner une région —</option>';
-  document.getElementById('u-dept').innerHTML = '<option value="">— Sélectionner d'abord une région —</option>';
+  document.getElementById('u-dept').innerHTML = `<option value="">— Sélectionner d'abord une région —</option>`;
   try {
     const regions = await api('GET', '/map/regions');
     regions.forEach(r => {
@@ -2949,7 +2949,7 @@ async function loadDeptsForUser() {
   const regionId = document.getElementById('u-region').value;
   const dsel = document.getElementById('u-dept');
   dsel.innerHTML = '<option value="">Chargement…</option>';
-  if (!regionId) { dsel.innerHTML = '<option value="">— Sélectionner d'abord une région —</option>'; return; }
+  if (!regionId) { dsel.innerHTML = `<option value="">— Sélectionner d'abord une région —</option>`; return; }
   try {
     const regions = await api('GET', '/map/regions-with-departments');
     const reg = regions.find(r => String(r.id) === String(regionId));
