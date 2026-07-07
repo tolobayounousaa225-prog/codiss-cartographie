@@ -1,7 +1,7 @@
 [
   {
     "email": "secretaire.abidjan@codiss.ci",
-    "password_hash": "$2b$12$niNYR/ykI8U4ks5aXC/34exlPih1KGSutlqxipQf2xkCeLZLvS9xW",
+    "password_hash": "$2b$12$1Vxnr.1FNtEzVkhoNbD7WOEJyNJ3uV0hZYWJqJXzZuUw8PGTP7rrG",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Abidjan",
     "phone": null,
@@ -9,12 +9,12 @@
     "language": "fr",
     "is_active": true,
     "must_set_password": false,
-    "region_id": null,
-    "department_id": null
+    "region_id": 1,
+    "department_id": 4
   },
   {
     "email": "secretaire.bouake@codiss.ci",
-    "password_hash": "$2b$12$ITZX8A3Ad3mqpPLPN4G9QeEisgSGzoNfXqyiWqex0AOhvu0vLONyi",
+    "password_hash": "$2b$12$diKSy5gj4k4YmM.I35b/8eQUJwyHIPkCxGtd2PxHACZa6vb6rKXXC",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Bouaké",
     "phone": null,
@@ -22,12 +22,12 @@
     "language": "fr",
     "is_active": true,
     "must_set_password": false,
-    "region_id": null,
-    "department_id": null
+    "region_id": 15,
+    "department_id": 53
   },
   {
     "email": "secretaire.yamoussoukro@codiss.ci",
-    "password_hash": "$2b$12$CGklRvrHNHh8pWbpcfa8cO4TBvyE.q7sKgRcNhTKDRFROL3DQrgHS",
+    "password_hash": "$2b$12$S.jvvt4pHi3ynyRHWZAuq.8QRoPTac86MsIfpnAnTdRHnelmS.wwa",
     "plain_password": "Branch@2024",
     "full_name": "Secrétaire Yamoussoukro",
     "phone": null,
@@ -35,8 +35,8 @@
     "language": "fr",
     "is_active": true,
     "must_set_password": false,
-    "region_id": null,
-    "department_id": null
+    "region_id": 30,
+    "department_id": 102
   },
   {
     "email": "ayoubatoloba718@gmail.com",
@@ -102,5 +102,18 @@
     "must_set_password": false,
     "region_id": 17,
     "department_id": 61
+  },
+  {
+    "email": "juneid16@yahoo.fr",
+    "password_hash": "$2b$12$EhOXyLRWhjdlBd1zZvOM/uSJaV0fvGM3A4TjXtFHeG6qDnCbvA5na",
+    "plain_password": null,
+    "full_name": "ISSA DIARASSOUBA",
+    "phone": "050450541",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 19,
+    "department_id": 66
   }
 ]
