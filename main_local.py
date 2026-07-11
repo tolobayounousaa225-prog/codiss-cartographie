@@ -1453,6 +1453,72 @@ async def mark_read(nid: str, db: AsyncSession = Depends(get_db), u: User = Depe
         await db.commit()
     return {"ok": True}
 
+
+@app.patch("/api/admin/notifications/read-all")
+async def mark_all_read(db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    await db.execute(
+        update(Notification).where(Notification.user_id == u.id, Notification.is_read == False).values(is_read=True)
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/admin/notifications/{nid}")
+async def delete_notif(nid: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    n = await db.get(Notification, nid)
+    if n and n.user_id == u.id:
+        await db.delete(n)
+        await db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/search")
+async def global_search(q: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    """Recherche transversale : branches, rapports, régions (et utilisateurs pour les admins)."""
+    query = (q or "").strip()
+    if len(query) < 2:
+        return {"query": query, "branches": [], "reports": [], "regions": [], "users": []}
+    like = f"%{query}%"
+
+    branches_q = select(Branch).where(
+        (Branch.name.ilike(like)) | (Branch.code.ilike(like)) | (Branch.city.ilike(like))
+    ).limit(15)
+    if u.role == "branch":
+        bu = (await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))).scalar_one_or_none()
+        branches_q = branches_q.where(Branch.id == bu.branch_id) if bu else branches_q.where(Branch.id == None)
+    branches = (await db.execute(branches_q)).scalars().all()
+
+    reports_q = select(PresenceReport).where(PresenceReport.title.ilike(like)).order_by(PresenceReport.created_at.desc()).limit(15)
+    if u.role == "branch":
+        bu = (await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))).scalar_one_or_none()
+        reports_q = reports_q.where(PresenceReport.branch_id == bu.branch_id) if bu else reports_q.where(PresenceReport.branch_id == None)
+    reports = (await db.execute(reports_q)).scalars().all()
+    branch_names = {}
+    if reports:
+        bids = {r.branch_id for r in reports if r.branch_id}
+        if bids:
+            for b in (await db.execute(select(Branch).where(Branch.id.in_(bids)))).scalars().all():
+                branch_names[b.id] = b.name
+
+    regions = (await db.execute(
+        select(Region).where((Region.name_fr.ilike(like)) | (Region.code.ilike(like))).limit(10)
+    )).scalars().all()
+
+    users = []
+    if u.role in ("superadmin", "admin"):
+        users = (await db.execute(
+            select(User).where((User.full_name.ilike(like)) | (User.email.ilike(like))).limit(10)
+        )).scalars().all()
+
+    return {
+        "query": query,
+        "branches": [{"id": b.id, "name": b.name, "code": b.code, "city": b.city, "status": b.status} for b in branches],
+        "reports": [{"id": r.id, "title": r.title, "status": r.status, "branch_name": branch_names.get(r.branch_id, "—"),
+                     "created_at": r.created_at.isoformat() if r.created_at else None} for r in reports],
+        "regions": [{"id": r.id, "name_fr": r.name_fr, "code": r.code} for r in regions],
+        "users": [{"id": us.id, "full_name": us.full_name, "email": us.email, "role": us.role} for us in users],
+    }
+
 # ══════════════════════════════════════════════════════
 # PROFIL UTILISATEUR
 # ══════════════════════════════════════════════════════

@@ -268,16 +268,45 @@ body.dark-mode .btn-primary:hover{box-shadow:0 0 30px rgba(0,230,118,.45);}
 /* MAIN */
 .main{margin-left:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;position:relative;z-index:1;}
 .topbar{
-  background:rgba(10,14,26,.85);
+  background:rgba(255,255,255,.88);
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   padding:12px 28px;display:flex;align-items:center;
-  justify-content:space-between;
+  justify-content:space-between;gap:18px;
   border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:90;
 }
+body.dark-mode .topbar{background:rgba(10,14,26,.85);}
 .topbar-left{display:flex;align-items:center;gap:12px;}
-.topbar h1{font-size:1rem;font-weight:700;color:var(--text);}
+.topbar h1{font-size:1rem;font-weight:700;color:var(--text);white-space:nowrap;}
 .breadcrumb{font-size:.76rem;color:var(--text3);}
+
+/* RECHERCHE GLOBALE */
+.global-search-wrap{position:relative;flex:1;max-width:420px;}
+.global-search-input{
+  width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:10px;
+  font-size:.85rem;background:var(--bg4);color:var(--text);outline:none;
+  font-family:var(--font);transition:.2s;
+}
+.global-search-input:focus{border-color:var(--green2);box-shadow:0 0 0 3px var(--green3);}
+.global-search-panel{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;max-height:420px;overflow-y:auto;
+  background:var(--card,var(--bg3));border:1px solid var(--border2);border-radius:12px;
+  box-shadow:var(--shadow2);z-index:150;padding:6px;
+}
+.gs-section-title{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--text3);padding:8px 10px 4px;
+}
+.gs-result-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+  cursor:pointer;transition:.15s;
+}
+.gs-result-item:hover{background:var(--bg4);}
+.gs-result-icon{font-size:1rem;flex-shrink:0;}
+.gs-result-main{flex:1;min-width:0;}
+.gs-result-title{font-size:.84rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gs-result-sub{font-size:.72rem;color:var(--text3);}
+.gs-empty{padding:16px;text-align:center;color:var(--text3);font-size:.82rem;}
 .topbar-right{display:flex;align-items:center;gap:12px;}
 .notif-badge{position:relative;cursor:pointer;font-size:1.1rem;padding:6px;
   background:var(--bg4);border-radius:8px;transition:.2s;border:1px solid var(--border);}
@@ -672,7 +701,10 @@ body.dark-mode tr:hover td{background:rgba(255,255,255,.025);}
   .form-grid{grid-template-columns:1fr;}
   .stats-grid{grid-template-columns:1fr 1fr;}
   .content{padding:16px;}
-  .topbar{padding:10px 16px;}
+  .topbar{padding:10px 16px;flex-wrap:wrap;}
+  .topbar-left{order:1;}
+  .topbar-right{order:2;}
+  .global-search-wrap{order:3;max-width:none;width:100%;flex-basis:100%;}
 }
 
 /* ═══ SHIMMER LOADING ═══ */
@@ -1093,6 +1125,12 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
       <div class="topbar-left">
         <h1 id="page-title">Tableau de bord</h1>
       </div>
+      <div class="global-search-wrap" id="global-search-wrap">
+        <input type="text" id="global-search-input" class="global-search-input"
+               placeholder="🔍 Rechercher une branche, un rapport, une région…"
+               oninput="onGlobalSearchInput()" onfocus="onGlobalSearchInput()">
+        <div class="global-search-panel hidden" id="global-search-panel"></div>
+      </div>
       <div class="topbar-right">
         <div class="topbar-lang">
           <button class="lang-btn active" onclick="setLang('fr')" id="tl-fr">🇫🇷 FR</button>
@@ -1110,7 +1148,10 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
 
     <!-- NOTIFICATION PANEL -->
     <div class="notif-panel hidden" id="notif-panel">
-      <div class="notif-header" data-fr="Notifications" data-ar="الإشعارات">Notifications</div>
+      <div class="notif-header" style="display:flex;align-items:center;justify-content:space-between">
+        <span data-fr="Notifications" data-ar="الإشعارات">Notifications</span>
+        <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--green2);font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap">✓ Tout marquer lu</button>
+      </div>
       <div id="notif-list"><div style="padding:16px;text-align:center;color:var(--text2);font-size:.85rem;">Chargement…</div></div>
     </div>
 
@@ -3783,11 +3824,20 @@ async function loadNotifications() {
     }
     listEl.innerHTML = notifs.map(n => `
       <div class="notif-item${!n.is_read?' unread':''}" onclick="markNotifRead('${n.id}')">
-        <div class="notif-title">${n.title}</div>
-        ${n.body?`<div class="notif-body">${n.body}</div>`:''}
-        <div class="notif-time">${n.created_at?new Date(n.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):''}</div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <span style="font-size:.95rem;flex-shrink:0">${notifIcon(n.type)}</span>
+          <div style="flex:1;min-width:0">
+            <div class="notif-title">${n.title}</div>
+            ${n.body?`<div class="notif-body">${n.body}</div>`:''}
+            <div class="notif-time">${n.created_at?new Date(n.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):''}</div>
+          </div>
+          <button onclick="deleteNotif('${n.id}', event)" title="Supprimer" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:.75rem;flex-shrink:0">✕</button>
+        </div>
       </div>`).join('');
   } catch(e) {}
+}
+function notifIcon(type) {
+  return { success:'✅', warning:'⚠️', error:'❌', info:'ℹ️' }[type] || '🔔';
 }
 
 function toggleNotifPanel() {
@@ -3798,6 +3848,108 @@ async function markNotifRead(id) {
   try { await api('PATCH', `/admin/notifications/${id}/read`); loadNotifications(); }
   catch(e) {}
 }
+
+async function markAllNotifsRead() {
+  try { await api('PATCH', '/admin/notifications/read-all'); loadNotifications(); }
+  catch(e) {}
+}
+
+async function deleteNotif(id, ev) {
+  if (ev) ev.stopPropagation();
+  try { await api('DELETE', `/admin/notifications/${id}`); loadNotifications(); }
+  catch(e) {}
+}
+
+// Rafraîchissement automatique du badge de notifications toutes les 30 secondes
+if (!window._notifPollingStarted) {
+  window._notifPollingStarted = true;
+  setInterval(() => { if (STATE.token) loadNotifications(); }, 30000);
+}
+
+// ═══════════════════════════════════════════════════════
+// RECHERCHE GLOBALE
+// ═══════════════════════════════════════════════════════
+let _gsTimer = null;
+function onGlobalSearchInput() {
+  const q = document.getElementById('global-search-input').value.trim();
+  const panel = document.getElementById('global-search-panel');
+  clearTimeout(_gsTimer);
+  if (q.length < 2) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<div class="gs-empty">Recherche…</div>`;
+  _gsTimer = setTimeout(async () => {
+    try {
+      const d = await api('GET', `/search?q=${encodeURIComponent(q)}`);
+      renderGlobalSearchResults(d);
+    } catch(e) {
+      panel.innerHTML = `<div class="gs-empty">Erreur de recherche</div>`;
+    }
+  }, 300);
+}
+
+function renderGlobalSearchResults(d) {
+  const panel = document.getElementById('global-search-panel');
+  const total = d.branches.length + d.reports.length + d.regions.length + d.users.length;
+  if (total === 0) {
+    panel.innerHTML = `<div class="gs-empty">Aucun résultat pour « ${d.query} »</div>`;
+    return;
+  }
+  let html = '';
+  if (d.branches.length) {
+    html += `<div class="gs-section-title">🏛 Branches</div>` + d.branches.map(b => `
+      <div class="gs-result-item" onclick="goToSearchResult('branch','${b.id}')">
+        <div class="gs-result-icon">🏛</div>
+        <div class="gs-result-main"><div class="gs-result-title">${b.name}</div><div class="gs-result-sub">${b.code} · ${b.city||'—'}</div></div>
+        <span class="badge-status badge-${b.status}" style="font-size:.65rem">${b.status}</span>
+      </div>`).join('');
+  }
+  if (d.reports.length) {
+    html += `<div class="gs-section-title">📄 Rapports</div>` + d.reports.map(r => `
+      <div class="gs-result-item" onclick="goToSearchResult('report','${r.id}')">
+        <div class="gs-result-icon">📄</div>
+        <div class="gs-result-main"><div class="gs-result-title">${r.title}</div><div class="gs-result-sub">${r.branch_name}</div></div>
+        <span class="badge-status badge-${r.status}" style="font-size:.65rem">${r.status}</span>
+      </div>`).join('');
+  }
+  if (d.regions.length) {
+    html += `<div class="gs-section-title">🗺 Régions</div>` + d.regions.map(r => `
+      <div class="gs-result-item" onclick="goToSearchResult('region','${r.id}')">
+        <div class="gs-result-icon">🗺</div>
+        <div class="gs-result-main"><div class="gs-result-title">${r.name_fr}</div><div class="gs-result-sub">${r.code}</div></div>
+      </div>`).join('');
+  }
+  if (d.users.length) {
+    html += `<div class="gs-section-title">👤 Utilisateurs</div>` + d.users.map(u => `
+      <div class="gs-result-item" onclick="goToSearchResult('user','${u.id}')">
+        <div class="gs-result-icon">👤</div>
+        <div class="gs-result-main"><div class="gs-result-title">${u.full_name}</div><div class="gs-result-sub">${u.email}</div></div>
+      </div>`).join('');
+  }
+  panel.innerHTML = html;
+}
+
+function goToSearchResult(type, id) {
+  document.getElementById('global-search-panel').classList.add('hidden');
+  document.getElementById('global-search-input').value = '';
+  if (type === 'branch') {
+    showSection('branches');
+    setTimeout(() => openBranchFiche(id), 400);
+  } else if (type === 'report') {
+    showSection(STATE.user && STATE.user.role === 'branch' ? 'my-reports' : 'reports');
+    setTimeout(() => showReportDetail(id), 400);
+  } else if (type === 'region') {
+    showSection('regions');
+  } else if (type === 'user') {
+    showSection('users');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('global-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('global-search-panel').classList.add('hidden');
+  }
+});
 
 // ═══════════════════════════════════════════════════════
 // UTILITAIRES
