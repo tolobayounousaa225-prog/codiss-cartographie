@@ -4,42 +4,50 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>CODISS — Système de Cartographie Nationale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{
-  /* Brand */
-  --green:#00e676;--green2:#00c853;--green3:rgba(0,230,118,.12);
-  --orange:#ff9100;--orange2:#ffab40;--orange3:rgba(255,145,0,.12);
-  --red:#ff1744;--red3:rgba(255,23,68,.12);
-  --blue:#448aff;--blue3:rgba(68,138,255,.12);
-  --purple:#e040fb;--purple3:rgba(224,64,251,.12);
+  /* Brand — accent unique : teal profond, sobre et institutionnel */
+  --green:#0f766e;--green2:#0d9488;--green3:rgba(15,118,110,.10);
+  --orange:#b45309;--orange2:#d97706;--orange3:rgba(180,83,9,.10);
+  --red:#b91c1c;--red3:rgba(185,28,28,.10);
+  --blue:#1d4ed8;--blue3:rgba(29,78,216,.10);
+  --purple:#6d28d9;--purple3:rgba(109,40,217,.10);
 
-  /* Dark theme surfaces */
-  --bg:#0a0e1a;          /* Page background */
-  --bg2:#0f1623;         /* Sidebar */
-  --bg3:#131c2e;         /* Cards */
-  --bg4:#1a2440;         /* Inputs, hover */
-  --border:rgba(255,255,255,.08);
-  --border2:rgba(255,255,255,.15);
+  /* Thème clair par défaut — anthracite + surfaces neutres */
+  --bg:#f4f5f7;          /* Page background */
+  --bg2:#ffffff;         /* Sidebar */
+  --bg3:#ffffff;         /* Cards */
+  --bg4:#eceef1;         /* Inputs, hover */
+  --border:rgba(15,23,42,.08);
+  --border2:rgba(15,23,42,.14);
 
-  /* Text */
+  /* Text — anthracite */
   --white:#fff;
-  --text:#e2e8f0;
-  --text2:#94a3b8;
-  --text3:#64748b;
+  --text:#1e2328;
+  --text2:#565e68;
+  --text3:#8891a0;
 
-  /* Glows */
-  --glow-green:0 0 20px rgba(0,230,118,.25);
-  --glow-orange:0 0 20px rgba(255,145,0,.25);
-  --glow-blue:0 0 20px rgba(68,138,255,.25);
-  --glow-purple:0 0 20px rgba(224,64,251,.25);
+  /* Ombres douces (thème clair) */
+  --glow-green:0 0 0 rgba(0,0,0,0);
+  --glow-orange:0 0 0 rgba(0,0,0,0);
+  --glow-blue:0 0 0 rgba(0,0,0,0);
+  --glow-purple:0 0 0 rgba(0,0,0,0);
 
-  --shadow:0 4px 24px rgba(0,0,0,.4);
-  --shadow2:0 8px 48px rgba(0,0,0,.6);
-  --radius:14px;
-  --font:'Segoe UI',Arial,sans-serif;
+  --shadow:0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+  --shadow2:0 10px 30px rgba(15,23,42,.10), 0 4px 10px rgba(15,23,42,.06);
+  --radius:12px;
+  --radius-sm:8px;
+  --radius-lg:18px;
+  --font:'Inter','Segoe UI',Arial,sans-serif;
   --sidebar:265px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -73,6 +81,12 @@ body::before{
 #login-screen::before{
   content:'';position:absolute;inset:0;
   background:
+    radial-gradient(ellipse 70% 80% at 20% 50%, rgba(15,118,110,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 70% at 80% 30%, rgba(29,78,216,.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 50% 90%, rgba(109,40,217,.03) 0%, transparent 50%);
+}
+body.dark-mode #login-screen::before{
+  background:
     radial-gradient(ellipse 70% 80% at 20% 50%, rgba(0,230,118,.08) 0%, transparent 60%),
     radial-gradient(ellipse 60% 70% at 80% 30%, rgba(68,138,255,.08) 0%, transparent 60%),
     radial-gradient(ellipse 50% 60% at 50% 90%, rgba(224,64,251,.05) 0%, transparent 50%);
@@ -83,14 +97,18 @@ body::before{
   pointer-events:none;
 }
 .login-card{
-  background:rgba(15,22,35,.85);
+  background:rgba(255,255,255,.9);
   border:1px solid var(--border2);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-radius:24px;padding:44px 48px;
   width:100%;max-width:460px;
-  box-shadow:0 32px 80px rgba(0,0,0,.6), var(--glow-green);
+  box-shadow:0 32px 80px rgba(15,23,42,.12), 0 0 0 1px rgba(15,23,42,.03);
   position:relative;z-index:1;
   animation:slideUp .5s cubic-bezier(.22,.68,0,1.2) both;
+}
+body.dark-mode .login-card{
+  background:rgba(15,22,35,.85);
+  box-shadow:0 32px 80px rgba(0,0,0,.6), var(--glow-green);
 }
 @keyframes slideUp{
   from{opacity:0;transform:translateY(30px) scale(.97);}
@@ -128,7 +146,7 @@ body::before{
   background:var(--bg4);color:var(--text);font-family:var(--font);
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
-  border-color:rgba(0,230,118,.5);box-shadow:0 0 0 3px rgba(0,230,118,.1),var(--glow-green);
+  border-color:var(--green2);box-shadow:0 0 0 3px var(--green3),var(--glow-green);
 }
 .form-group input::placeholder{color:var(--text3);}
 .form-group select option{background:var(--bg3);color:var(--text);}
@@ -145,13 +163,15 @@ body::before{
 .btn:active{transform:scale(.98);}
 .btn-primary{
   background:linear-gradient(135deg,var(--green2),var(--green));
-  color:#000;font-weight:800;box-shadow:var(--glow-green);
+  color:#fff;font-weight:800;box-shadow:var(--glow-green);
 }
-.btn-primary:hover{box-shadow:0 0 30px rgba(0,230,118,.45);}
+.btn-primary:hover{box-shadow:var(--shadow2);}
+body.dark-mode .btn-primary{color:#000;}
+body.dark-mode .btn-primary:hover{box-shadow:0 0 30px rgba(0,230,118,.45);}
 .btn-secondary{background:var(--bg4);color:var(--text);border:1px solid var(--border);}
 .btn-secondary:hover{border-color:var(--border2);}
-.btn-orange{background:linear-gradient(135deg,#ff9100,#ff6d00);color:#fff;box-shadow:var(--glow-orange);}
-.btn-danger{background:linear-gradient(135deg,var(--red),#d50000);color:#fff;}
+.btn-orange{background:linear-gradient(135deg,var(--orange2),var(--orange));color:#fff;box-shadow:var(--glow-orange);}
+.btn-danger{background:linear-gradient(135deg,var(--red),#8f1414);color:#fff;}
 .alert{padding:12px 16px;border-radius:10px;font-size:.86rem;margin-bottom:16px;border:1px solid;backdrop-filter:blur(8px);}
 .alert-error{background:rgba(255,23,68,.1);color:#ff8a80;border-color:rgba(255,23,68,.3);}
 .alert-success{background:rgba(0,230,118,.1);color:#69f0ae;border-color:rgba(0,230,118,.3);}
@@ -224,7 +244,7 @@ body::before{
   color:var(--text2);
 }
 .nav-item:hover{
-  background:rgba(255,255,255,.04);color:var(--text);
+  background:var(--bg4);color:var(--text);
   border-left-color:var(--border2);
 }
 .nav-item.active{
@@ -306,13 +326,11 @@ body::before{
   background:linear-gradient(135deg,rgba(255,255,255,.02),transparent);
   pointer-events:none;
 }
-.stat-card:hover{transform:translateY(-3px);border-top-color:currentColor;}
-.stat-card.green{--card-glow:var(--glow-green);}
-.stat-card.green:hover{box-shadow:var(--shadow),var(--glow-green);}
-.stat-card.orange{--card-glow:var(--glow-orange);}
-.stat-card.orange:hover{box-shadow:var(--shadow),var(--glow-orange);}
-.stat-card.blue:hover{box-shadow:var(--shadow),var(--glow-blue);}
-.stat-card.red:hover{box-shadow:var(--shadow),0 0 20px rgba(255,23,68,.25);}
+.stat-card:hover{transform:translateY(-3px);border-top-color:currentColor;box-shadow:var(--shadow2);}
+.stat-card.green:hover{box-shadow:var(--shadow2),var(--glow-green);}
+.stat-card.orange:hover{box-shadow:var(--shadow2),var(--glow-orange);}
+.stat-card.blue:hover{box-shadow:var(--shadow2),var(--glow-blue);}
+.stat-card.red:hover{box-shadow:var(--shadow2),var(--glow-red,0 0 20px rgba(185,28,28,.15));}
 .stat-icon{
   width:50px;height:50px;border-radius:12px;
   display:flex;align-items:center;justify-content:center;
@@ -358,20 +376,30 @@ body::before{
 }
 .legend-item{display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--text2);}
 .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.map-filter-chip{
+  display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text2);
+  cursor:pointer;padding:7px 10px;border-radius:7px;border:1.5px solid var(--gray2);
+  background:var(--bg1);user-select:none;white-space:nowrap;
+}
+.map-filter-chip:hover{border-color:var(--green2);}
+.map-filter-chip input{cursor:pointer;}
+.map-cov-btn:hover{border-color:var(--green2);}
 
 /* TABLE */
 .table-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:.83rem;}
 th{
   text-align:left;padding:10px 14px;
-  background:rgba(255,255,255,.03);
+  background:var(--bg4);
   color:var(--text3);font-weight:700;font-size:.7rem;
   text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;
   border-bottom:1px solid var(--border);
 }
 td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text);}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:rgba(255,255,255,.025);}
+tr:hover td{background:var(--bg4);}
+body.dark-mode th{background:rgba(255,255,255,.03);}
+body.dark-mode tr:hover td{background:rgba(255,255,255,.025);}
 .badge-status{
   display:inline-block;padding:3px 10px;border-radius:6px;
   font-size:.7rem;font-weight:700;letter-spacing:.03em;
@@ -493,11 +521,11 @@ tr:hover td{background:rgba(255,255,255,.025);}
 .notif-header{
   padding:12px 16px;font-weight:700;font-size:.86rem;color:var(--text);
   border-bottom:1px solid var(--border);
-  background:rgba(255,255,255,.03);
+  background:var(--bg4);
   border-radius:var(--radius) var(--radius) 0 0;
 }
 .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:.15s;}
-.notif-item:hover{background:rgba(255,255,255,.03);}
+.notif-item:hover{background:var(--bg4);}
 .notif-item.unread{border-left:2px solid var(--orange);}
 .notif-item .notif-title{font-size:.82rem;font-weight:600;color:var(--text);}
 .notif-item .notif-body{font-size:.76rem;color:var(--text2);margin-top:3px;}
@@ -546,7 +574,7 @@ tr:hover td{background:rgba(255,255,255,.025);}
 }
 .quick-action:hover{
   border-color:var(--green);transform:translateY(-4px);
-  box-shadow:var(--shadow),var(--glow-green);
+  box-shadow:var(--shadow2),var(--glow-green);
 }
 .quick-action .icon{font-size:1.8rem;margin-bottom:10px;}
 .quick-action .label{font-size:.8rem;font-weight:700;color:var(--text);}
@@ -655,20 +683,33 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 }
 
 /* ════ LIGHT THEME ════ */
-body.light-mode {
-  --bg:#f0f4f8; --bg2:#e2e8f0; --bg3:#cbd5e0; --bg4:#a0aec0;
-  --border:rgba(0,0,0,.1); --border2:rgba(0,0,0,.2);
-  --text:#1a202c; --text2:#2d3748; --text3:#718096;
+body.dark-mode {
+  --green:#00e676;--green2:#00c853;--green3:rgba(0,230,118,.12);
+  --orange:#ff9100;--orange2:#ffab40;--orange3:rgba(255,145,0,.12);
+  --red:#ff1744;--red3:rgba(255,23,68,.12);
+  --blue:#448aff;--blue3:rgba(68,138,255,.12);
+  --purple:#e040fb;--purple3:rgba(224,64,251,.12);
+
+  --bg:#0a0e1a; --bg2:#0f1623; --bg3:#131c2e; --bg4:#1a2440;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.15);
+  --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
   --white:#fff;
+
+  --glow-green:0 0 20px rgba(0,230,118,.25);
+  --glow-orange:0 0 20px rgba(255,145,0,.25);
+  --glow-blue:0 0 20px rgba(68,138,255,.25);
+  --glow-purple:0 0 20px rgba(224,64,251,.25);
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --shadow2:0 8px 48px rgba(0,0,0,.6);
 }
-body.light-mode body::before { opacity:.3; }
-body.light-mode .sidebar { background:var(--bg2); border-right:1px solid var(--border); }
-body.light-mode .panel { background:var(--bg2); }
-body.light-mode .topbar { background:var(--bg2); border-bottom:1px solid var(--border); }
-body.light-mode table thead tr { background:var(--bg3); }
-body.light-mode tr:hover td { background:rgba(0,0,0,.04); }
-body.light-mode input, body.light-mode select, body.light-mode textarea {
-  background:var(--bg); color:var(--text); border-color:var(--border2);
+body.dark-mode body::before { opacity:.3; }
+body.dark-mode .sidebar { background:var(--bg2); border-right:1px solid var(--border); }
+body.dark-mode .panel { background:var(--bg3); }
+body.dark-mode .topbar { background:var(--bg2); border-bottom:1px solid var(--border); }
+body.dark-mode table thead tr { background:var(--bg3); }
+body.dark-mode tr:hover td { background:rgba(255,255,255,.03); }
+body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
+  background:var(--bg4); color:var(--text); border-color:var(--border2);
 }
 
 /* ════ THEME TOGGLE BUTTON ════ */
@@ -1013,6 +1054,9 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
           <button class="lang-btn active" onclick="setLang('fr')" id="tl-fr">🇫🇷 FR</button>
           <button class="lang-btn" onclick="setLang('ar')" id="tl-ar">🇸🇦 AR</button>
         </div>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Changer de thème">
+          <span id="theme-icon">🌙</span><span id="theme-label">Sombre</span>
+        </button>
         <div class="notif-badge" onclick="toggleNotifPanel()" title="Notifications">
           🔔<span class="badge" id="notif-count" style="display:none">0</span>
         </div>
@@ -1334,6 +1378,14 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
            SECTION : CARTE
       ══════════════════════════════════════════ -->
       <div id="section-map" class="section-hidden">
+        <div class="map-toolbar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--gray2);border-radius:10px">
+          <input id="map-search" type="text" placeholder="🔍 Rechercher un secrétariat…" oninput="filterMapMarkers()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--gray2);border-radius:7px;font-size:.85rem;background:var(--bg1);color:var(--text1)">
+          <label class="map-filter-chip"><input type="checkbox" id="mf-active" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--green2)"></span> Actives</label>
+          <label class="map-filter-chip"><input type="checkbox" id="mf-pending" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--orange)"></span> En attente</label>
+          <label class="map-filter-chip"><input type="checkbox" id="mf-other" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--red)"></span> Autres</label>
+          <label class="map-filter-chip"><input type="checkbox" id="mf-verified" onchange="filterMapMarkers()"> ✓ Vérifiées seulement</label>
+          <button onclick="toggleCoveragePanel()" class="map-cov-btn" style="padding:8px 12px;border:1.5px solid var(--gray2);border-radius:7px;background:var(--bg1);color:var(--text1);cursor:pointer;font-size:.82rem;font-weight:600">🗺️ Couverture régions</button>
+        </div>
         <div class="map-legend">
           <strong style="font-size:.82rem;color:var(--text2)" data-fr="Légende :" data-ar="المفتاح:">Légende :</strong>
           <span class="legend-item"><span class="legend-dot" style="background:var(--green2)"></span><span data-fr="Branche active" data-ar="فرع نشط">Branche active</span></span>
@@ -1341,7 +1393,16 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
           <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span><span data-fr="Suspendue/Rejetée" data-ar="موقوف/مرفوض">Suspendue/Rejetée</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:#888"></span><span data-fr="Sans présence CODISS" data-ar="لا يوجد تواجد لـ CODISS">Sans présence CODISS</span></span>
         </div>
-        <div id="map"></div>
+        <div style="position:relative">
+          <div id="map"></div>
+          <div id="coverage-panel" style="display:none;position:absolute;top:10px;right:10px;z-index:1000;width:280px;max-height:calc(100% - 20px);overflow-y:auto;background:var(--bg1);border:1px solid var(--gray2);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35);padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <strong style="font-size:.9rem">Couverture par région</strong>
+              <button onclick="toggleCoveragePanel()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:1rem">✕</button>
+            </div>
+            <div id="coverage-list"></div>
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════════════
@@ -2116,6 +2177,14 @@ async function loadDashboard() {
 
 let _chartBranch = null, _chartReports = null;
 
+// Lit une variable CSS calculée pour que les graphiques Chart.js suivent le thème actif
+function cssVar(name) {
+  return getComputedStyle(document.body).getPropertyValue(name).trim() || '#8891a0';
+}
+function chartGridColor() {
+  return document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,.05)' : 'rgba(15,23,42,.06)';
+}
+
 function renderBranchChart(as) {
   const ctx = document.getElementById('chart-branches');
   if (!ctx) return;
@@ -2126,7 +2195,7 @@ function renderBranchChart(as) {
       labels: ['Actives', 'En attente', 'Suspendues'],
       datasets: [{
         data: [as.active_branches||0, as.pending_branches||0, as.suspended_branches||0],
-        backgroundColor: ['#00e676','#ff9800','#ff1744'],
+        backgroundColor: ['#00c853','#f59e0b','#dc2626'],
         borderColor: 'transparent', borderWidth: 0,
         hoverOffset: 8,
       }]
@@ -2134,7 +2203,7 @@ function renderBranchChart(as) {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position:'bottom', labels:{ color:'#a0aec0', font:{size:11}, padding:14 } },
+        legend: { position:'bottom', labels:{ color:cssVar('--text2'), font:{size:11}, padding:14 } },
         tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
       },
       cutout: '62%',
@@ -2153,8 +2222,8 @@ function renderReportsChart(as) {
       datasets: [{
         label: 'Rapports',
         data: as.reports_by_month.data,
-        backgroundColor: 'rgba(0,230,118,.25)',
-        borderColor: '#00e676',
+        backgroundColor: 'rgba(15,118,110,.25)',
+        borderColor: cssVar('--green2'),
         borderWidth: 2, borderRadius: 6,
       }]
     },
@@ -2162,8 +2231,8 @@ function renderReportsChart(as) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display:false } },
       scales: {
-        x: { grid:{ color:'rgba(255,255,255,.05)' }, ticks:{ color:'#a0aec0', font:{size:10} } },
-        y: { grid:{ color:'rgba(255,255,255,.05)' }, ticks:{ color:'#a0aec0', font:{size:10} }, beginAtZero:true, precision:0 }
+        x: { grid:{ color:chartGridColor() }, ticks:{ color:cssVar('--text2'), font:{size:10} } },
+        y: { grid:{ color:chartGridColor() }, ticks:{ color:cssVar('--text2'), font:{size:10} }, beginAtZero:true, precision:0 }
       }
     }
   });
@@ -4198,23 +4267,25 @@ function avatarHTML(name, small=false) {
 // 🌓 THÈME CLAIR / SOMBRE
 // ══════════════════════════════════════════════════════════════
 function toggleTheme() {
-  const isLight = document.body.classList.toggle('light-mode');
-  localStorage.setItem('codiss_theme', isLight ? 'light' : 'dark');
+  const isDark = document.body.classList.toggle('dark-mode');
+  localStorage.setItem('codiss_theme', isDark ? 'dark' : 'light');
   const icon  = document.getElementById('theme-icon');
   const label = document.getElementById('theme-label');
-  if (icon)  icon.textContent  = isLight ? '☀️' : '🌙';
-  if (label) label.textContent = isLight ? 'Sombre' : 'Clair';
+  if (icon)  icon.textContent  = isDark ? '☀️' : '🌙';
+  if (label) label.textContent = isDark ? 'Clair' : 'Sombre';
+  // Redessiner les graphiques Chart.js pour qu'ils reprennent les couleurs du nouveau thème
+  if (typeof loadDashboard === 'function' && STATE.currentPage === 'dashboard') loadDashboard();
 }
-// Appliquer le thème sauvegardé au chargement
+// Appliquer le thème sauvegardé au chargement (clair par défaut)
 (function() {
   const saved = localStorage.getItem('codiss_theme');
-  if (saved === 'light') {
-    document.body.classList.add('light-mode');
+  if (saved === 'dark') {
+    document.body.classList.add('dark-mode');
     setTimeout(() => {
       const icon  = document.getElementById('theme-icon');
       const label = document.getElementById('theme-label');
       if (icon)  icon.textContent  = '☀️';
-      if (label) label.textContent = 'Sombre';
+      if (label) label.textContent = 'Clair';
     }, 100);
   }
 })();
@@ -4497,22 +4568,103 @@ loadDashboard = async function() {
 // ══════════════════════════════════════════════════════════════
 const _origLoadMapPoints = loadMapPoints;
 loadMapPoints = async function() {
-  await _origLoadMapPoints();
-  if (STATE.markersLayer && window._mapBranchData) {
-    STATE.markersLayer.clearLayers();
-    window._mapBranchData.forEach(p => {
-      if (!p.latitude || !p.longitude) return;
-      const colors = { active:'#00c853', pending:'#ff9100', suspended:'#ff1744', rejected:'#ff1744' };
-      const m = L.circleMarker([p.latitude, p.longitude], {
-        radius: 8, fillColor: colors[p.status] || '#888',
-        color: '#fff', weight: 2, opacity: 1, fillOpacity: .85
-      });
-      m.on('click', () => openMapPanel(p));
-      m.bindTooltip(p.name, { direction:'top', offset:[0,-8] });
-      STATE.markersLayer.addLayer(m);
-    });
-  }
+  try {
+    const stats = await api('GET', '/map/stats');
+    window._mapBranchData = stats.points || [];
+  } catch(e) { console.error(e); }
+  renderMapMarkers();
 };
+
+// Rendu des marqueurs avec regroupement (clustering) + application des filtres
+window._mapMarkers = [];
+function markerColor(status) {
+  return status==='active' ? '#00c853' : status==='pending' ? '#ff9100' : '#ff1744';
+}
+function renderMapMarkers() {
+  if (!STATE.map || !window._mapBranchData) return;
+  // Initialiser le groupe de clusters une seule fois
+  if (!STATE.clusterLayer) {
+    if (window.L && L.markerClusterGroup) {
+      STATE.clusterLayer = L.markerClusterGroup({
+        maxClusterRadius: 45, spiderfyOnMaxZoom: true, showCoverageOnHover: false,
+      });
+      STATE.map.addLayer(STATE.clusterLayer);
+    } else {
+      // Repli : couche simple si la librairie de clustering n'a pas chargé
+      STATE.clusterLayer = L.layerGroup().addTo(STATE.map);
+    }
+  }
+  STATE.clusterLayer.clearLayers();
+  if (STATE.markersLayer) STATE.markersLayer.clearLayers();
+  window._mapMarkers = [];
+
+  window._mapBranchData.forEach(p => {
+    if (!p.latitude || !p.longitude) return;
+    const m = L.circleMarker([p.latitude, p.longitude], {
+      radius: 9, fillColor: markerColor(p.status),
+      color: p.is_verified ? '#ffd600' : '#fff', weight: p.is_verified ? 3 : 2,
+      opacity: 1, fillOpacity: .88
+    });
+    m.on('click', () => openMapPanel(p));
+    m.bindTooltip(p.name + (p.is_verified ? ' ✓' : ''), { direction:'top', offset:[0,-10] });
+    m._branch = p;
+    window._mapMarkers.push(m);
+  });
+  filterMapMarkers();
+}
+
+// Filtrer les marqueurs selon les cases et la recherche
+function filterMapMarkers() {
+  if (!STATE.clusterLayer || !window._mapMarkers) return;
+  const showActive = document.getElementById('mf-active')?.checked;
+  const showPending = document.getElementById('mf-pending')?.checked;
+  const showOther = document.getElementById('mf-other')?.checked;
+  const verifiedOnly = document.getElementById('mf-verified')?.checked;
+  const q = (document.getElementById('map-search')?.value || '').trim().toLowerCase();
+
+  STATE.clusterLayer.clearLayers();
+  const visibles = [];
+  window._mapMarkers.forEach(m => {
+    const p = m._branch;
+    let ok = (p.status==='active' && showActive) || (p.status==='pending' && showPending) ||
+             (p.status!=='active' && p.status!=='pending' && showOther);
+    if (verifiedOnly && !p.is_verified) ok = false;
+    if (q && !((p.name||'').toLowerCase().includes(q) || (p.city||'').toLowerCase().includes(q) || (p.region_name||'').toLowerCase().includes(q))) ok = false;
+    if (ok) { STATE.clusterLayer.addLayer(m); visibles.push(m); }
+  });
+  // Si une recherche cible un seul résultat, zoomer dessus
+  if (q && visibles.length === 1) {
+    const p = visibles[0]._branch;
+    STATE.map.setView([p.latitude, p.longitude], 12, { animate:true });
+  }
+}
+
+// Panneau de couverture par région (choroplèthe textuelle)
+let _coverageLoaded = false;
+async function toggleCoveragePanel() {
+  const panel = document.getElementById('coverage-panel');
+  if (!panel) return;
+  const showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (!showing && !_coverageLoaded) {
+    try {
+      const cov = await api('GET', '/map/coverage-summary');
+      const niveau = { high:['#00c853','Forte'], medium:['#ff9100','Moyenne'], none:['#78909c','Aucune'] };
+      cov.sort((a,b)=> b.branch_count - a.branch_count);
+      document.getElementById('coverage-list').innerHTML = cov.map(r => {
+        const [couleur, label] = niveau[r.coverage_level] || niveau.none;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray2)">
+          <span style="width:10px;height:10px;border-radius:50%;background:${couleur};flex-shrink:0"></span>
+          <span style="flex:1;font-size:.8rem">${r.name_fr}</span>
+          <span style="font-size:.75rem;color:var(--text3)">${r.branch_count}</span>
+        </div>`;
+      }).join('');
+      _coverageLoaded = true;
+    } catch(e) {
+      document.getElementById('coverage-list').innerHTML = '<div style="color:var(--text3);font-size:.8rem">Erreur de chargement</div>';
+    }
+  }
+}
 </script>
 
 <!-- ══ MODALE INACTIVITÉ ══════════════════════════════════════════ -->
