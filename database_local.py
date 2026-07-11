@@ -6,7 +6,17 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = "sqlite+aiosqlite:///./codiss_local.db"
+# Chemin du fichier SQLite : configurable via la variable d'environnement DB_PATH.
+# En production sur Render, DB_PATH doit pointer vers le disque persistant monté
+# (ex. /data/codiss_local.db) pour que les données survivent aux redéploiements.
+# Sans cette variable (développement local), on garde l'ancien comportement.
+DB_PATH = os.environ.get("DB_PATH", "./codiss_local.db")
+# S'assurer que le dossier cible existe (utile la première fois sur un disque neuf)
+_db_dir = os.path.dirname(DB_PATH)
+if _db_dir and not os.path.exists(_db_dir):
+    os.makedirs(_db_dir, exist_ok=True)
+
+DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 DB_MODE      = "sqlite"
 
 engine = create_async_engine(

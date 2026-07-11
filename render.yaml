@@ -2,9 +2,16 @@ services:
   - type: web
     name: codiss-cartographie
     runtime: python
+    plan: starter
     buildCommand: pip install -r requirements_render.txt
     startCommand: uvicorn main_local:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    disk:
+      name: codiss-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: DB_PATH
+        value: /data/codiss_local.db

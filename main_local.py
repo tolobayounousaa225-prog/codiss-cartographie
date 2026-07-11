@@ -223,7 +223,7 @@ async def backup_users_to_github(db=None):
     try:
         def _read_users_sync():
             import sqlite3 as _sqlite3
-            db_path = os.path.join(os.path.dirname(__file__), "codiss_local.db")
+            db_path = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "codiss_local.db"))
             conn = _sqlite3.connect(db_path)
             conn.row_factory = _sqlite3.Row
             cur = conn.cursor()
