@@ -641,6 +641,29 @@ body.dark-mode tr:hover td{background:rgba(255,255,255,.025);}
 .ranking-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--green2),var(--green));}
 .ranking-count{width:34px;text-align:right;font-size:.85rem;font-weight:800;color:var(--text);flex-shrink:0;}
 
+/* FICHE SECRÉTARIAT */
+.fiche-stat-box{
+  background:var(--bg4);border-radius:10px;padding:12px;text-align:center;
+}
+.fiche-stat-box .v{font-size:1.3rem;font-weight:800;color:var(--green);line-height:1;}
+.fiche-stat-box .l{font-size:.68rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:.03em;}
+
+/* GALERIE PHOTOS DE RAPPORT */
+.report-photos-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}
+.report-photo-thumb{
+  position:relative;border-radius:10px;overflow:hidden;aspect-ratio:4/3;
+  border:1px solid var(--border);background:var(--bg4);
+}
+.report-photo-thumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;}
+.report-photo-thumb .rp-legende{
+  position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);
+  color:#fff;font-size:.68rem;padding:3px 6px;
+}
+.report-photo-thumb .rp-delete-btn{
+  position:absolute;top:4px;right:4px;background:rgba(185,28,28,.9);color:#fff;
+  border:none;border-radius:6px;width:20px;height:20px;cursor:pointer;font-size:.68rem;
+}
+
 /* RESPONSIVE */
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%);}
@@ -1688,6 +1711,17 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
     <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
       <button class="btn-pdf" onclick="exportReportPDF()" data-fr="📥 Télécharger PDF" data-ar="📥 تحميل PDF">📥 Télécharger PDF</button>
       <button class="action-btn gray" onclick="closeModal('modal-report')" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Fiche secrétariat complète ═══ -->
+<div class="modal-overlay modal-hidden" id="modal-branch-fiche">
+  <div class="modal" style="max-width:720px">
+    <h2 id="modal-branch-fiche-title">📋 Fiche secrétariat</h2>
+    <div id="modal-branch-fiche-body"><div style="color:var(--text3)">Chargement…</div></div>
+    <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+      <button class="action-btn gray" onclick="closeModal('modal-branch-fiche')" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
     </div>
   </div>
 </div>
@@ -2940,31 +2974,82 @@ async function loadMyReports() {
 // ═══════════════════════════════════════════════════════
 // DETAIL RAPPORT
 // ═══════════════════════════════════════════════════════
-async function showReportDetail(id) {
-  document.getElementById('modal-report-title').textContent = STATE.lang==='fr'?'Détail du rapport':'Report Detail';
-  document.getElementById('modal-report-body').innerHTML = `<div style="color:var(--text3)">${t('loading')}</div>`;
-  document.getElementById('modal-report').classList.remove('modal-hidden');
+// ═══════════════════════════════════════════════════════
+// PHOTOS DE RAPPORT (galerie dans la modale de détail)
+// ═══════════════════════════════════════════════════════
+async function loadReportPhotos(reportId) {
+  const box = document.getElementById('report-photos-gallery');
+  if (!box) return;
   try {
-    const r = await api('GET', `/reports/${id}`);
-    let answersHtml = '';
-    if (r.form_answers && r.form_answers.length) {
-      answersHtml = '<hr style="margin:16px 0;border:none;border-top:1px solid var(--gray2)"/><div style="font-weight:700;margin-bottom:12px;color:var(--green)">Questionnaire CODISS</div>' +
-        r.form_answers.map((a,i) => `
-          <div style="margin-bottom:12px;background:var(--bg4);padding:10px 14px;border-radius:8px">
-            <div style="font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:4px">${i+1}. ${a.question}</div>
-            <div style="font-size:.88rem">${a.answer||'<em style="color:var(--text3)">Non renseigné</em>'}</div>
-          </div>`).join('');
+    const photos = await api('GET', `/reports/${reportId}/photos`);
+    if (!photos.length) {
+      box.innerHTML = `<div style="color:var(--text3);font-size:.85rem">Aucune photo pour ce rapport.</div>`;
+      return;
     }
-    document.getElementById('modal-report-body').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-        <div><span style="font-size:.78rem;color:var(--text2)">Type</span><br><strong>${r.report_type}</strong></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">Statut</span><br><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">Date</span><br><strong>${r.created_at?new Date(r.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):'—'}</strong></div>
-        <div><span style="font-size:.78rem;color:var(--text2)">GPS</span><br><strong>${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</strong></div>
-      </div>
-      ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${r.description}</div>`:''}
-      ${answersHtml}`;
-  } catch(e) { document.getElementById('modal-report-body').innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+    box.innerHTML = photos.map(p => `
+      <div class="report-photo-thumb" id="rp-thumb-${p.id}">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:.7rem">Chargement…</div>
+        ${p.legende?`<div class="rp-legende">${p.legende}</div>`:''}
+        <button class="rp-delete-btn" title="Supprimer" onclick="deleteReportPhoto('${reportId}','${p.id}')">✕</button>
+      </div>`).join('');
+    // Charger chaque image via fetch authentifié (l'endpoint exige le header Authorization)
+    photos.forEach(async (p) => {
+      try {
+        const res = await fetch(`${API}/report-photos/${p.id}/fichier`, { headers: { 'Authorization': 'Bearer ' + STATE.token } });
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const thumb = document.getElementById(`rp-thumb-${p.id}`);
+        if (thumb) {
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = p.legende || '';
+          img.onclick = () => window.open(url, '_blank');
+          thumb.insertBefore(img, thumb.firstChild.nextSibling);
+          thumb.firstChild.remove();
+        }
+      } catch(e) { /* ignorer l'échec d'une vignette isolée */ }
+    });
+  } catch(e) {
+    box.innerHTML = `<div style="color:var(--red);font-size:.85rem">${e.message}</div>`;
+  }
+}
+
+async function uploadReportPhoto(reportId) {
+  const fileInput = document.getElementById('rp-file-input');
+  const legendeInput = document.getElementById('rp-legende-input');
+  const status = document.getElementById('rp-upload-status');
+  const file = fileInput.files[0];
+  if (!file) { status.textContent = 'Choisissez une image.'; return; }
+  status.textContent = 'Envoi en cours…';
+  try {
+    const fd = new FormData();
+    fd.append('fichier', file);
+    if (legendeInput.value.trim()) fd.append('legende', legendeInput.value.trim());
+    const res = await fetch(`${API}/reports/${reportId}/photos`, {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + STATE.token }, body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Envoi impossible');
+    }
+    status.textContent = '✅ Photo ajoutée';
+    fileInput.value = '';
+    legendeInput.value = '';
+    loadReportPhotos(reportId);
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+  }
+}
+
+async function deleteReportPhoto(reportId, photoId) {
+  if (!confirm('Supprimer cette photo ?')) return;
+  try {
+    await api('DELETE', `/report-photos/${photoId}`);
+    loadReportPhotos(reportId);
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3047,6 +3132,7 @@ function filterBranchCards() {
         </div>
         <div style="display:flex;gap:6px;margin-top:4px">
           <button class="action-btn" style="font-size:.75rem;padding:4px 10px" onclick="openEditBranchModal(${JSON.stringify(b).replace(/"/g,'&quot;')})">✏️ Modifier</button>
+          <button class="action-btn blue" style="font-size:.75rem;padding:4px 10px" onclick="openBranchFiche('${b.id}')">📋 Fiche</button>
           ${!b.is_verified && b.status !== 'rejected' ? `<button class="action-btn green" style="font-size:.75rem;padding:4px 10px" onclick="verifyBranch('${b.id}','${b.dept_name||b.name}')">✓ Vérifier</button>` : ''}
           ${b.status === 'active' ? `<button class="action-btn red" style="font-size:.75rem;padding:4px 10px" onclick="rejectBranch('${b.id}','${b.dept_name||b.name}')">✕ Suspendre</button>` : ''}
         </div>
@@ -3054,6 +3140,65 @@ function filterBranchCards() {
     });
   }
   grid.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════
+// FICHE SECRÉTARIAT COMPLÈTE
+// ═══════════════════════════════════════════════════════
+async function openBranchFiche(branchId) {
+  document.getElementById('modal-branch-fiche').classList.remove('modal-hidden');
+  const body = document.getElementById('modal-branch-fiche-body');
+  body.innerHTML = `<div style="color:var(--text3)">Chargement…</div>`;
+  try {
+    const d = await api('GET', `/branches/${branchId}/fiche`);
+    const b = d.branch;
+    document.getElementById('modal-branch-fiche-title').textContent = `📋 ${b.name}`;
+
+    const secHtml = d.secretaires.length
+      ? d.secretaires.map(s => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--green3);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem">${(s.full_name||'?')[0]}</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.86rem">${s.full_name}</div>
+              <div style="font-size:.75rem;color:var(--text3)">${s.email}${s.phone?' · '+s.phone:''}</div>
+            </div>
+            <span class="badge-status ${s.is_active?'badge-active':'badge-suspended'}">${s.is_active?'Actif':'Inactif'}</span>
+          </div>`).join('')
+      : `<div style="color:var(--text3);font-size:.85rem">Aucun secrétaire assigné.</div>`;
+
+    const reportsHtml = d.reports.length
+      ? `<table><thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Statut</th><th>📷</th></tr></thead><tbody>` +
+        d.reports.map(r => `<tr>
+          <td>${r.title}</td>
+          <td><span class="badge-status badge-submitted">${r.report_type}</span></td>
+          <td style="font-size:.8rem">${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-CI') : '—'}</td>
+          <td><span class="badge-status badge-${r.status}">${r.status}</span></td>
+          <td style="text-align:center">${r.nb_photos > 0 ? r.nb_photos : '—'}</td>
+        </tr>`).join('') + `</tbody></table>`
+      : `<div style="color:var(--text3);font-size:.85rem">Aucun rapport soumis.</div>`;
+
+    body.innerHTML = `
+      <div class="fiche-stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+        <div class="fiche-stat-box"><div class="v">${d.stats.total_reports}</div><div class="l">Rapports</div></div>
+        <div class="fiche-stat-box"><div class="v">${d.stats.approved_reports}</div><div class="l">Approuvés</div></div>
+        <div class="fiche-stat-box"><div class="v">${d.stats.pending_reports}</div><div class="l">En attente</div></div>
+        <div class="fiche-stat-box"><div class="v">${d.stats.total_activities}</div><div class="l">Activités menées</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:.85rem;margin-bottom:16px">
+        <div><span style="color:var(--text3)">Code</span><br><strong>${b.code}</strong></div>
+        <div><span style="color:var(--text3)">Ville</span><br><strong>${b.city||'—'}</strong></div>
+        <div><span style="color:var(--text3)">Région</span><br><strong>${d.region?d.region.name_fr:'—'}</strong></div>
+        <div><span style="color:var(--text3)">Département</span><br><strong>${d.department?d.department.name_fr:'—'}</strong></div>
+        <div><span style="color:var(--text3)">Statut</span><br><span class="badge-status badge-${b.status}">${b.status}</span></div>
+        <div><span style="color:var(--text3)">Dernier rapport</span><br><strong>${d.stats.last_report_date?new Date(d.stats.last_report_date).toLocaleDateString('fr-CI'):'—'}</strong></div>
+      </div>
+      <div style="font-weight:700;color:var(--green);margin:14px 0 8px">👤 Secrétaire(s)</div>
+      ${secHtml}
+      <div style="font-weight:700;color:var(--green);margin:18px 0 8px">📄 Historique des rapports</div>
+      <div class="table-wrap">${reportsHtml}</div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+  }
 }
 
 function openEditBranchModal(b) {
@@ -4113,7 +4258,17 @@ async function showReportDetail(id) {
       </div>
       ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${r.description}</div>`:''}
       ${threadHtml}
-      ${answersHtml}`;
+      ${answersHtml}
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"/>
+      <div style="font-weight:700;margin-bottom:10px;color:var(--green)">📷 Photos du rapport</div>
+      <div style="margin-bottom:12px">
+        <input type="file" id="rp-file-input" accept="image/*" style="font-size:.82rem">
+        <input type="text" id="rp-legende-input" placeholder="Légende (optionnel)" style="margin-top:8px;width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--bg4);color:var(--text)">
+        <button class="btn btn-primary" style="margin-top:8px;max-width:200px" onclick="uploadReportPhoto('${r.id}')">📤 Ajouter la photo</button>
+        <div id="rp-upload-status" style="font-size:.78rem;color:var(--text3);margin-top:6px"></div>
+      </div>
+      <div id="report-photos-gallery" class="report-photos-gallery"><div style="color:var(--text3);font-size:.85rem">Chargement…</div></div>`;
+    loadReportPhotos(r.id);
   } catch(e) { document.getElementById('modal-report-body').innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
 }
 

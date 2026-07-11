@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Boolean, Integer, Float, Text, Date,
-    DateTime, ForeignKey, JSON
+    DateTime, ForeignKey, JSON, LargeBinary
 )
 from sqlalchemy.orm import relationship
 from database_local import Base
@@ -131,6 +131,21 @@ class PresenceReport(Base):
     updated_at        = Column(DateTime, default=datetime.utcnow)
     branch            = relationship("Branch", back_populates="reports")
     form_answers      = relationship("ReportFormAnswer", back_populates="report")
+    photos            = relationship("ReportPhoto", back_populates="report")
+
+class ReportPhoto(Base):
+    """Photo jointe à un rapport de présence. Stockée en base (le disque Render est éphémère)."""
+    __tablename__ = "report_photos"
+    id           = Column(String(36), primary_key=True, default=new_uuid)
+    report_id    = Column(String(36), ForeignKey("presence_reports.id"), nullable=False)
+    nom_fichier  = Column(String(255), nullable=False)
+    type_mime    = Column(String(50), nullable=False)
+    taille       = Column(Integer, default=0)
+    contenu      = Column(LargeBinary, nullable=False)
+    legende      = Column(String(255), nullable=True)
+    uploaded_by  = Column(String(36), ForeignKey("users.id"), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    report       = relationship("PresenceReport", back_populates="photos")
 
 class ReportFormAnswer(Base):
     __tablename__ = "report_form_answers"

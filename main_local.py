@@ -3,7 +3,7 @@ CODISS Cartographie — Backend FastAPI (SQLite)
 Local  : uvicorn main_local:app --reload --port 8000
 Render : uvicorn main_local:app --host 0.0.0.0 --port $PORT
 """
-from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -28,7 +28,8 @@ def parse_date(val):
 from database_local import engine, Base, get_db, AsyncSessionLocal
 from models_local import (
     User, Branch, BranchUser, PresenceReport,
-    ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession, Department
+    ReportFormAnswer, ActivityLog, Notification, Region, ActiveSession, Department,
+    ReportPhoto
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, distinct, text, case
@@ -503,6 +504,69 @@ async def get_branch(bid: str, db: AsyncSession = Depends(get_db), _=Depends(cur
     if not b: raise HTTPException(404, "Branche introuvable")
     return _branch_dict(b)
 
+
+@app.get("/api/branches/{bid}/fiche")
+async def get_branch_fiche(bid: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    """Fiche complète d'un secrétariat : infos, région/département, secrétaire(s) assigné(s),
+    historique des rapports avec compteur de photos, statistiques d'activité."""
+    b = await db.get(Branch, bid)
+    if not b:
+        raise HTTPException(404, "Branche introuvable")
+
+    region = await db.get(Region, b.region_id) if b.region_id else None
+    department = await db.get(Department, b.department_id) if b.department_id else None
+
+    # Secrétaire(s) assigné(s) à cette branche
+    links = (await db.execute(select(BranchUser).where(BranchUser.branch_id == bid))).scalars().all()
+    secretaires = []
+    for link in links:
+        user = await db.get(User, link.user_id)
+        if user:
+            secretaires.append({
+                "id": user.id, "full_name": user.full_name, "email": user.email,
+                "phone": user.phone, "is_active": user.is_active,
+                "last_login": user.last_login.isoformat() if user.last_login else None,
+            })
+
+    # Historique des rapports (avec compteur de photos)
+    reports = (await db.execute(
+        select(PresenceReport).where(PresenceReport.branch_id == bid).order_by(PresenceReport.created_at.desc())
+    )).scalars().all()
+    reports_data = []
+    for r in reports:
+        nb_photos = (await db.execute(
+            select(func.count()).select_from(ReportPhoto).where(ReportPhoto.report_id == r.id)
+        )).scalar()
+        reports_data.append({
+            "id": r.id, "title": r.title, "report_type": r.report_type, "status": r.status,
+            "activity_count": r.activity_count,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "period_start": str(r.period_start) if r.period_start else None,
+            "period_end": str(r.period_end) if r.period_end else None,
+            "nb_photos": nb_photos,
+        })
+
+    total_reports = len(reports_data)
+    approved = sum(1 for r in reports_data if r["status"] == "approved")
+    pending = sum(1 for r in reports_data if r["status"] == "submitted")
+    total_activities = sum(r["activity_count"] or 0 for r in reports_data)
+    last_report_date = reports_data[0]["created_at"] if reports_data else None
+
+    return {
+        "branch": _branch_dict(b),
+        "region": {"id": region.id, "name_fr": region.name_fr, "code": region.code} if region else None,
+        "department": {"id": department.id, "name_fr": department.name_fr} if department else None,
+        "secretaires": secretaires,
+        "reports": reports_data,
+        "stats": {
+            "total_reports": total_reports,
+            "approved_reports": approved,
+            "pending_reports": pending,
+            "total_activities": total_activities,
+            "last_report_date": last_report_date,
+        },
+    }
+
 @app.post("/api/branches", status_code=201)
 async def create_branch(data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     ex = await db.execute(select(Branch).where(Branch.code == data.get("code","")))
@@ -652,6 +716,110 @@ async def submit_report(data: dict, db: AsyncSession = Depends(get_db), u: User 
     await db.commit()
     await db.refresh(report)
     return _report_dict(report)
+
+
+# ══════════════════════════════════════════════════════
+# PHOTOS DE RAPPORT
+# ══════════════════════════════════════════════════════
+PHOTO_TYPES_AUTORISES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+PHOTO_MAX_TAILLE = 8 * 1024 * 1024  # 8 Mo
+
+
+async def _report_accessible(rp: PresenceReport, u: User, db: AsyncSession) -> bool:
+    """Un rapport est accessible : à tout admin/superadmin, ou au secrétaire de la branche concernée."""
+    if u.role in ("superadmin", "admin", "viewer"):
+        return True
+    if u.role == "branch":
+        bu = (await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))).scalar_one_or_none()
+        return bool(bu and bu.branch_id == rp.branch_id)
+    return False
+
+
+@app.post("/api/reports/{rid}/photos", status_code=201)
+async def upload_report_photo(
+    rid: str,
+    legende: str = Form(None),
+    fichier: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    u: User = Depends(current_user),
+):
+    rp = await db.get(PresenceReport, rid)
+    if not rp:
+        raise HTTPException(404, "Rapport introuvable")
+    if not await _report_accessible(rp, u, db):
+        raise HTTPException(403, "Accès refusé à ce rapport")
+
+    type_mime = (fichier.content_type or "").lower()
+    if type_mime not in PHOTO_TYPES_AUTORISES:
+        raise HTTPException(400, "Format non autorisé (image JPG, PNG, WEBP ou GIF)")
+    contenu = await fichier.read()
+    if not contenu:
+        raise HTTPException(400, "Fichier vide")
+    if len(contenu) > PHOTO_MAX_TAILLE:
+        raise HTTPException(400, "Image trop volumineuse (maximum 8 Mo)")
+
+    photo = ReportPhoto(
+        report_id=rid,
+        nom_fichier=fichier.filename or f"photo{PHOTO_TYPES_AUTORISES[type_mime]}",
+        type_mime=type_mime,
+        taille=len(contenu),
+        contenu=contenu,
+        legende=(legende or "").strip() or None,
+        uploaded_by=u.id,
+    )
+    db.add(photo)
+    await db.commit()
+    await db.refresh(photo)
+    return {
+        "id": photo.id, "nom_fichier": photo.nom_fichier, "type_mime": photo.type_mime,
+        "taille": photo.taille, "legende": photo.legende,
+        "created_at": photo.created_at.isoformat() if photo.created_at else None,
+    }
+
+
+@app.get("/api/reports/{rid}/photos")
+async def list_report_photos(rid: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    rp = await db.get(PresenceReport, rid)
+    if not rp:
+        raise HTTPException(404, "Rapport introuvable")
+    if not await _report_accessible(rp, u, db):
+        raise HTTPException(403, "Accès refusé à ce rapport")
+    photos = (await db.execute(
+        select(ReportPhoto).where(ReportPhoto.report_id == rid).order_by(ReportPhoto.created_at)
+    )).scalars().all()
+    return [{
+        "id": p.id, "nom_fichier": p.nom_fichier, "type_mime": p.type_mime,
+        "taille": p.taille, "legende": p.legende,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    } for p in photos]
+
+
+@app.get("/api/report-photos/{photo_id}/fichier")
+async def get_report_photo_file(photo_id: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    photo = await db.get(ReportPhoto, photo_id)
+    if not photo:
+        raise HTTPException(404, "Photo introuvable")
+    rp = await db.get(PresenceReport, photo.report_id)
+    if not rp or not await _report_accessible(rp, u, db):
+        raise HTTPException(403, "Accès refusé")
+    nom_ascii = "".join(c if c.isascii() and c not in '"\\' else "_" for c in photo.nom_fichier)
+    return Response(
+        content=photo.contenu, media_type=photo.type_mime,
+        headers={"Content-Disposition": f'inline; filename="{nom_ascii}"'},
+    )
+
+
+@app.delete("/api/report-photos/{photo_id}")
+async def delete_report_photo(photo_id: str, db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    photo = await db.get(ReportPhoto, photo_id)
+    if not photo:
+        raise HTTPException(404, "Photo introuvable")
+    rp = await db.get(PresenceReport, photo.report_id)
+    if not rp or not await _report_accessible(rp, u, db):
+        raise HTTPException(403, "Accès refusé")
+    await db.delete(photo)
+    await db.commit()
+    return {"ok": True}
 
 @app.get("/api/reports")
 async def list_reports(db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
