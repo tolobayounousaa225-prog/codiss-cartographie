@@ -75,9 +75,10 @@ body::before{
    LOGIN
 ════════════════════════════════════════ */
 #login-screen{
-  display:flex;align-items:center;justify-content:center;min-height:100vh;
+  display:none;align-items:center;justify-content:center;min-height:100vh;
   background:var(--bg);padding:20px;position:relative;overflow:hidden;
 }
+#login-screen.visible{display:flex;}
 #login-screen::before{
   content:'';position:absolute;inset:0;
   background:
@@ -893,6 +894,12 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
 </style>
 </head>
 <body>
+
+<!-- Écran neutre affiché le temps que le script décide login vs app (évite le clignotement) -->
+<div id="boot-screen" style="position:fixed;inset:0;background:#f4f5f7;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="width:38px;height:38px;border-radius:50%;border:3px solid rgba(15,118,110,.15);border-top-color:#0d9488;animation:boot-spin .7s linear infinite;"></div>
+</div>
+<style>@keyframes boot-spin{to{transform:rotate(360deg);}}</style>
 
 <!-- ═══════════════════ LOGIN ═══════════════════ -->
 <div id="login-screen">
@@ -2126,7 +2133,10 @@ function doLogout() {
   localStorage.removeItem('codiss_token');
   localStorage.removeItem('codiss_user');
   document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-screen').classList.add('visible');
   document.getElementById('app').style.display = 'none';
+  const boot = document.getElementById('boot-screen');
+  if (boot) boot.remove();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2140,6 +2150,8 @@ function roleBadgeHTML(role) {
 function initApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  const boot = document.getElementById('boot-screen');
+  if (boot) boot.remove();
   setLang(STATE.lang);
 
   const u = STATE.user;
@@ -4568,6 +4580,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     _setupToken = setupToken;
     const screen = document.getElementById('setup-password-screen');
     screen.style.display = 'flex';
+    const boot0 = document.getElementById('boot-screen');
+    if (boot0) boot0.remove();
     try {
       const info = await checkSetupToken(setupToken);
       document.getElementById('setup-welcome-msg').innerHTML =
@@ -4592,6 +4606,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       STATE.lang  = STATE.user.lang || 'fr';
       initApp();
     } catch(e) { doLogout(); }
+  } else {
+    // Pas de session : afficher l'écran de connexion et retirer l'écran de chargement
+    document.getElementById('login-screen').classList.add('visible');
+    const boot = document.getElementById('boot-screen');
+    if (boot) boot.remove();
   }
 });
 
