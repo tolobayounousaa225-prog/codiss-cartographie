@@ -619,6 +619,27 @@ body.dark-mode tr:hover td{background:rgba(255,255,255,.025);}
 }
 .btn-pdf:hover{background:rgba(255,23,68,.25);}
 .btn-pdf svg{width:15px;height:15px;fill:currentColor;}
+.btn-csv{background:var(--green3);color:var(--green);border:1px solid rgba(15,118,110,.3);}
+.btn-csv:hover{background:rgba(15,118,110,.22);}
+
+/* CLASSEMENT DES RÉGIONS */
+.ranking-row{
+  display:flex;align-items:center;gap:14px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.ranking-row:last-child{border-bottom:none;}
+.ranking-rank{
+  width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.72rem;font-weight:800;background:var(--bg4);color:var(--text2);
+}
+.ranking-rank.gold{background:#fef3c7;color:#92400e;}
+.ranking-rank.silver{background:#e5e7eb;color:#4b5563;}
+.ranking-rank.bronze{background:#fed7aa;color:#9a3412;}
+.ranking-name{flex:1;font-size:.85rem;font-weight:600;color:var(--text);}
+.ranking-bar-wrap{width:140px;height:7px;border-radius:4px;background:var(--bg4);overflow:hidden;flex-shrink:0;}
+.ranking-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--green2),var(--green));}
+.ranking-count{width:34px;text-align:right;font-size:.85rem;font-weight:800;color:var(--text);flex-shrink:0;}
 
 /* RESPONSIVE */
 @media(max-width:768px){
@@ -1278,6 +1299,37 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
               <span data-fr="Couverture régionale" data-ar="التغطية الإقليمية">Couverture régionale</span>
             </button>
           </div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+            <span style="font-size:.85rem;font-weight:700;color:var(--text2)">📊 Exports CSV / Excel :</span>
+            <button class="btn-pdf btn-csv" onclick="exportCSV('branches')">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V9h5v1H8zm0-3V7h2v1H8z"/></svg>
+              <span data-fr="Branches" data-ar="الفروع">Branches</span>
+            </button>
+            <button class="btn-pdf btn-csv" onclick="exportCSV('reports')">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V9h5v1H8zm0-3V7h2v1H8z"/></svg>
+              <span data-fr="Rapports" data-ar="التقارير">Rapports</span>
+            </button>
+            <button class="btn-pdf btn-csv" onclick="exportCSV('users')">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V9h5v1H8zm0-3V7h2v1H8z"/></svg>
+              <span data-fr="Utilisateurs" data-ar="المستخدمون">Utilisateurs</span>
+            </button>
+            <button class="btn-pdf btn-csv" onclick="exportCSV('coverage')">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V9h5v1H8zm0-3V7h2v1H8z"/></svg>
+              <span data-fr="Couverture régionale" data-ar="التغطية الإقليمية">Couverture régionale</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel Classement des régions -->
+        <div class="panel" id="regions-ranking-panel" style="margin-top:18px;display:none">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">🏆 Classement des régions</div>
+              <div class="panel-subtitle">Par nombre de branches CODISS</div>
+            </div>
+            <button class="action-btn gray" onclick="loadRegionsRanking()" style="font-size:.78rem;">⟳ Actualiser</button>
+          </div>
+          <div id="regions-ranking-body" style="padding:18px 22px">Chargement…</div>
         </div>
 
         <!-- Panel Activité Secrétaires (admin/superadmin) -->
@@ -4560,8 +4612,74 @@ loadDashboard = async function() {
   }
   const actPanel = document.getElementById('secretaire-activity-panel');
   if (actPanel) { actPanel.style.display = 'block'; loadSecretaireActivity(); }
+  const rankPanel = document.getElementById('regions-ranking-panel');
+  if (rankPanel) { rankPanel.style.display = 'block'; loadRegionsRanking(); }
   return _origLoadDashboard();
 };
+
+// ══════════════════════════════════════════════════════════════
+// CLASSEMENT DES RÉGIONS
+// ══════════════════════════════════════════════════════════════
+async function loadRegionsRanking() {
+  const box = document.getElementById('regions-ranking-body');
+  if (!box) return;
+  try {
+    const d = await api('GET', '/admin/regions-ranking');
+    const top = d.top5.filter(r => r.total_branches > 0);
+    const bottom = d.bottom5;
+    const maxCount = Math.max(1, ...d.ranking.map(r => r.total_branches));
+    const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const renderRows = (list) => list.map((r, i) => `
+      <div class="ranking-row">
+        <div class="ranking-rank ${rankClass(i)}">${i + 1}</div>
+        <div class="ranking-name">${r.name_fr}</div>
+        <div class="ranking-bar-wrap"><div class="ranking-bar" style="width:${Math.round(r.total_branches / maxCount * 100)}%"></div></div>
+        <div class="ranking-count">${r.total_branches}</div>
+      </div>`).join('');
+    box.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🥇 Mieux couvertes</div>
+          ${renderRows(top.length ? top : d.top5)}
+        </div>
+        <div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">📍 À renforcer</div>
+          ${renderRows(bottom)}
+        </div>
+      </div>`;
+  } catch (e) {
+    box.innerHTML = `<div style="color:var(--text3);font-size:.85rem">Erreur de chargement du classement</div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT CSV / EXCEL
+// ══════════════════════════════════════════════════════════════
+async function exportCSV(type) {
+  const paths = {
+    branches: { path: '/admin/export/branches.csv', file: 'branches_codiss.csv' },
+    reports:  { path: '/admin/export/reports.csv',  file: 'rapports_codiss.csv' },
+    users:    { path: '/admin/export/users.csv',    file: 'utilisateurs_codiss.csv' },
+    coverage: { path: '/admin/export/coverage.csv', file: 'couverture_regionale_codiss.csv' },
+  };
+  const cfg = paths[type];
+  if (!cfg) return;
+  try {
+    const res = await fetch(API + cfg.path, { headers: { 'Authorization': 'Bearer ' + STATE.token } });
+    if (!res.ok) throw new Error('Export impossible (HTTP ' + res.status + ')');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = cfg.file;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    showToast(e.message || 'Erreur lors de l\'export', 'error');
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 // FIX MAP : ouvrir side panel au clic sur marker

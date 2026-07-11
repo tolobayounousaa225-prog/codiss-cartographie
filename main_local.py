@@ -918,6 +918,110 @@ async def department_coverage(db: AsyncSession = Depends(get_db), _=Depends(curr
         "by_region":             by_region,
     }
 
+
+@app.get("/api/admin/regions-ranking")
+async def regions_ranking(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Classement des régions par nombre de branches (actives + total), du mieux couvert au moins couvert."""
+    regions = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
+    branch_rows = (await db.execute(
+        select(Branch.region_id, Branch.status, func.count()).group_by(Branch.region_id, Branch.status)
+    )).all()
+    counts = {}
+    for region_id, status, cnt in branch_rows:
+        if region_id is None:
+            continue
+        counts.setdefault(region_id, {"active": 0, "pending": 0, "other": 0, "total": 0})
+        if status == "active":
+            counts[region_id]["active"] += cnt
+        elif status == "pending":
+            counts[region_id]["pending"] += cnt
+        else:
+            counts[region_id]["other"] += cnt
+        counts[region_id]["total"] += cnt
+
+    ranking = []
+    for r in regions:
+        c = counts.get(r.id, {"active": 0, "pending": 0, "other": 0, "total": 0})
+        ranking.append({
+            "region_id": r.id, "code": r.code, "name_fr": r.name_fr, "name_en": r.name_en,
+            "district": r.district,
+            "active_branches": c["active"], "pending_branches": c["pending"],
+            "other_branches": c["other"], "total_branches": c["total"],
+        })
+    ranking.sort(key=lambda x: x["total_branches"], reverse=True)
+    top5 = ranking[:5]
+    bottom5 = sorted(ranking, key=lambda x: x["total_branches"])[:5]
+    return {"ranking": ranking, "top5": top5, "bottom5": bottom5}
+
+
+def _csv_response(headers: list, rows: list, filename: str):
+    """Construit une réponse CSV (UTF-8 avec BOM pour Excel)."""
+    import io as _io, csv as _csv
+    buf = _io.StringIO()
+    writer = _csv.writer(buf, delimiter=";")
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
+    content = "\ufeff" + buf.getvalue()
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/admin/export/branches.csv")
+async def export_branches_csv(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    branches = (await db.execute(select(Branch).order_by(Branch.name))).scalars().all()
+    regions = {r.id: r.name_fr for r in (await db.execute(select(Region))).scalars().all()}
+    rows = [[
+        b.code, b.name, b.city or "", regions.get(b.region_id, ""), b.status,
+        "Oui" if b.is_verified else "Non", b.member_count or 0,
+        b.president_name or "", b.president_phone or "",
+        b.latitude or "", b.longitude or "",
+    ] for b in branches]
+    headers = ["Code", "Nom", "Ville", "Région", "Statut", "Vérifiée", "Membres",
+               "Président", "Téléphone président", "Latitude", "Longitude"]
+    return _csv_response(headers, rows, "branches_codiss.csv")
+
+
+@app.get("/api/admin/export/reports.csv")
+async def export_reports_csv(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    reports = (await db.execute(select(PresenceReport).order_by(PresenceReport.created_at.desc()))).scalars().all()
+    branches = {b.id: b.name for b in (await db.execute(select(Branch))).scalars().all()}
+    rows = [[
+        r.id, branches.get(r.branch_id, ""), r.report_type or "", r.status,
+        r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+        r.latitude or "", r.longitude or "",
+    ] for r in reports]
+    headers = ["ID", "Branche", "Type", "Statut", "Date", "Latitude", "Longitude"]
+    return _csv_response(headers, rows, "rapports_codiss.csv")
+
+
+@app.get("/api/admin/export/users.csv")
+async def export_users_csv(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    users = (await db.execute(select(User).order_by(User.full_name))).scalars().all()
+    regions = {r.id: r.name_fr for r in (await db.execute(select(Region))).scalars().all()}
+    rows = [[
+        u.full_name, u.email, u.role, regions.get(u.region_id, ""),
+        "Actif" if u.is_active else "Inactif",
+        u.last_login.strftime("%Y-%m-%d %H:%M") if getattr(u, "last_login", None) else "",
+    ] for u in users]
+    headers = ["Nom", "Email", "Rôle", "Région", "Statut", "Dernière connexion"]
+    return _csv_response(headers, rows, "utilisateurs_codiss.csv")
+
+
+@app.get("/api/admin/export/coverage.csv")
+async def export_coverage_csv(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    regions = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
+    branch_rows = (await db.execute(
+        select(Branch.region_id, func.count()).where(Branch.status.in_(["active", "pending"])).group_by(Branch.region_id)
+    )).all()
+    counts = {region_id: cnt for region_id, cnt in branch_rows}
+    rows = [[r.code, r.name_fr, r.district or "", counts.get(r.id, 0)] for r in regions]
+    headers = ["Code", "Région", "District", "Branches (actives + en attente)"]
+    return _csv_response(headers, rows, "couverture_regionale_codiss.csv")
+
 @app.get("/api/admin/secretaire-activity")
 async def secretaire_activity(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     """Classement des secrétaires par nombre de rapports soumis."""
