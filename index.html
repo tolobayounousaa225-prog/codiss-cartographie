@@ -1785,6 +1785,18 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
               <div id="restore-status" style="font-size:.78rem;color:var(--text3);margin-top:8px"></div>
             </div>
           </div>
+
+          <div style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:20px;">
+            <div style="font-weight:700;margin-bottom:8px;color:var(--blue)">🔄 Sauvegarde automatique programmée</div>
+            <div style="font-size:.82rem;color:var(--text2);margin-bottom:14px">
+              En complément du disque persistant, une sauvegarde JSON complète est automatiquement poussée
+              vers un dépôt GitHub à intervalle régulier — un filet de sécurité supplémentaire contre une
+              erreur humaine (par exemple, une suppression accidentelle).
+            </div>
+            <div id="autobackup-status" style="font-size:.85rem;margin-bottom:12px">Chargement du statut…</div>
+            <button class="btn-secondary" style="max-width:240px;border-color:var(--blue);color:var(--blue)" onclick="declencherSauvegardeAuto()">🔄 Déclencher maintenant</button>
+            <div id="autobackup-trigger-status" style="font-size:.78rem;color:var(--text3);margin-top:8px"></div>
+          </div>
         </div>
       </div>
 
@@ -2328,6 +2340,7 @@ function showSection(name) {
   else if (name === 'dashboard')   loadDashboard();
   else if (name === 'regions')     loadRegions();
   else if (name === 'journal')     loadJournal(0);
+  else if (name === 'system')      loadAutoBackupStatus();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -5222,6 +5235,46 @@ function journalPage(direction) {
   const next = journalState.offset + direction * journalState.limit;
   if (next < 0 || next >= journalState.total) return;
   loadJournal(next);
+}
+
+// ═══════════════════════════════════════════════════════
+// SAUVEGARDE AUTOMATIQUE PROGRAMMÉE
+// ═══════════════════════════════════════════════════════
+async function loadAutoBackupStatus() {
+  const box = document.getElementById('autobackup-status');
+  if (!box) return;
+  box.textContent = 'Chargement du statut…';
+  try {
+    const d = await api('GET', '/admin/sauvegarde-auto/statut');
+    if (!d.activee) {
+      box.innerHTML = `<span style="color:var(--text3)">⏸️ Non configurée sur ce déploiement (variable GITHUB_TOKEN absente).</span>`;
+      return;
+    }
+    const derniere = d.derniere_execution
+      ? new Date(d.derniere_execution).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US')
+      : 'Aucune exécution pour le moment (première prévue 2 min après le démarrage du serveur)';
+    const statutIcone = d.derniere_reussie === true ? '✅' : d.derniere_reussie === false ? '⚠️' : '⏳';
+    box.innerHTML = `
+      <div>🟢 Activée · toutes les <strong>${d.intervalle_heures}h</strong></div>
+      <div style="margin-top:4px">${statutIcone} Dernière exécution : ${derniere}</div>
+      ${d.derniers_compteurs ? `<div style="font-size:.72rem;color:var(--text3);margin-top:4px">${Object.entries(d.derniers_compteurs).map(([k,v])=>`${k}: ${v}`).join(' · ')}</div>` : ''}
+    `;
+  } catch (e) {
+    box.innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
+  }
+}
+
+async function declencherSauvegardeAuto() {
+  const status = document.getElementById('autobackup-trigger-status');
+  status.textContent = 'Sauvegarde en cours (peut prendre quelques secondes)…';
+  try {
+    await api('POST', '/admin/sauvegarde-auto/declencher');
+    status.textContent = '✅ Sauvegarde poussée avec succès sur GitHub';
+    showToast('Sauvegarde automatique déclenchée avec succès', 'success');
+    loadAutoBackupStatus();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════

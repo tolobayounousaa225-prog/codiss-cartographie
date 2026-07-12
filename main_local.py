@@ -212,7 +212,11 @@ async def lifespan(app: FastAPI):
                 print("✅ Toutes les branches existent déjà")
     except Exception as e:
         print(f"⚠️  Auto-branches erreur : {type(e).__name__}: {e}")
+    global _backup_task_handle
+    _backup_task_handle = asyncio.create_task(_backup_scheduler_loop())
     yield
+    if _backup_task_handle:
+        _backup_task_handle.cancel()
     await engine.dispose()
 
 
@@ -223,9 +227,10 @@ _GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # Définir GITHUB_TOKEN dans Ren
 _GH_REPO  = "tolobayounousaa225-prog/codiss-cartographie"
 _GH_FILE  = "data/backup_users.json"
 
-def _gh_api(method, payload=None):
+def _gh_api(method, payload=None, file_path=None):
     """Appel synchrone GitHub API (appellé via asyncio.to_thread)."""
-    url = f"https://api.github.com/repos/{_GH_REPO}/contents/{_GH_FILE}"
+    path = file_path or _GH_FILE
+    url = f"https://api.github.com/repos/{_GH_REPO}/contents/{path}"
     data = _json.dumps(payload).encode() if payload else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Authorization", f"token {_GH_TOKEN}")
@@ -329,6 +334,111 @@ async def restore_users_from_github():
                 print(f"GitHub: tous les {len(users_data)} users déjà présents")
     except Exception as e:
         print(f"⚠️  restore_users_from_github: {type(e).__name__}: {e}")
+
+
+def _serial(v):
+    """Sérialise les types non-JSON natifs (dates, bytes) pour l'export."""
+    if isinstance(v, (datetime, _date)):
+        return v.isoformat()
+    if isinstance(v, bytes):
+        return base64.b64encode(v).decode("ascii")
+    return v
+
+
+def _dump_all(model, exclude=()):
+    """Retourne toutes les lignes d'un modèle sous forme de dicts sérialisables."""
+    async def _run(db):
+        rows = (await db.execute(select(model))).scalars().all()
+        out = []
+        for obj in rows:
+            d = {}
+            for col in model.__table__.columns:
+                if col.name in exclude:
+                    continue
+                d[col.name] = _serial(getattr(obj, col.name))
+            out.append(d)
+        return out
+    return _run
+
+
+_GH_FILE_FULL = "data/backup_complete.json"
+_last_full_backup_info = {"date": None, "ok": None, "compteurs": None}
+
+
+async def _build_full_backup_dict():
+    """Construit le dict d'export complet (mêmes données que /api/admin/sauvegarde)."""
+    async with AsyncSessionLocal() as db:
+        return {
+            "meta": {
+                "application": "CODISS Cartographie",
+                "genere_le": datetime.utcnow().isoformat(),
+                "genere_par": "sauvegarde_automatique",
+                "version": 1,
+            },
+            "regions": await _dump_all(Region)(db),
+            "departments": await _dump_all(Department)(db),
+            "users": await _dump_all(User)(db),
+            "branches": await _dump_all(Branch)(db),
+            "branch_users": await _dump_all(BranchUser)(db),
+            "presence_reports": await _dump_all(PresenceReport)(db),
+            "report_form_answers": await _dump_all(ReportFormAnswer)(db),
+            "report_photos": await _dump_all(ReportPhoto)(db),
+            "notifications": await _dump_all(Notification)(db),
+        }
+
+
+async def backup_complete_to_github():
+    """Pousse une sauvegarde JSON complète de toute la base vers GitHub
+    (fichier data/backup_complete.json, écrasé à chaque exécution).
+    Filet de sécurité contre une erreur humaine ou un incident, en complément
+    du disque persistant Render."""
+    if not _GH_TOKEN:
+        print("⚠️  GITHUB_TOKEN non défini — sauvegarde automatique ignorée")
+        return
+    try:
+        data = await _build_full_backup_dict()
+        compteurs = {k: len(v) for k, v in data.items() if isinstance(v, list)}
+        encoded = base64.b64encode(
+            _json.dumps(data, ensure_ascii=False).encode()
+        ).decode()
+
+        def _push():
+            existing = _gh_api("GET", file_path=_GH_FILE_FULL)
+            sha = existing.get("sha") if existing else None
+            resume = ", ".join(f"{k}:{v}" for k, v in compteurs.items())
+            payload = {
+                "message": f"backup complet auto — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC ({resume})",
+                "content": encoded,
+            }
+            if sha: payload["sha"] = sha
+            return _gh_api("PUT", payload, file_path=_GH_FILE_FULL)
+
+        res = await asyncio.to_thread(_push)
+        ok = bool(res)
+        _last_full_backup_info["date"] = datetime.utcnow().isoformat()
+        _last_full_backup_info["ok"] = ok
+        _last_full_backup_info["compteurs"] = compteurs
+        if ok:
+            print(f"✅ Sauvegarde automatique complète poussée sur GitHub ({compteurs})")
+        else:
+            print("⚠️  Sauvegarde automatique complète : échec de l'envoi GitHub")
+    except Exception as e:
+        _last_full_backup_info["date"] = datetime.utcnow().isoformat()
+        _last_full_backup_info["ok"] = False
+        print(f"⚠️  backup_complete_to_github: {type(e).__name__}: {e}")
+
+
+_BACKUP_INTERVAL_SECONDS = int(os.environ.get("BACKUP_INTERVAL_HOURS", "24")) * 3600
+_backup_task_handle = None
+
+
+async def _backup_scheduler_loop():
+    """Boucle de fond : sauvegarde complète automatique à intervalle régulier.
+    Le premier passage est différé de 2 minutes pour laisser l'app démarrer sereinement."""
+    await asyncio.sleep(120)
+    while True:
+        await backup_complete_to_github()
+        await asyncio.sleep(_BACKUP_INTERVAL_SECONDS)
 
 async def auto_seed():
     """Crée le super-admin et les régions si la base est vierge."""
@@ -1169,6 +1279,7 @@ ACTION_LABELS = {
     "creation_utilisateur": "➕ Création d'utilisateur",
     "suppression_utilisateur": "🗑 Suppression d'utilisateur",
     "revue_rapport": "📄 Revue de rapport",
+    "sauvegarde_auto_manuelle": "💾 Sauvegarde automatique déclenchée",
 }
 
 
@@ -1216,31 +1327,6 @@ async def get_journal(
 # ══════════════════════════════════════════════════════
 # SAUVEGARDE & RESTAURATION COMPLÈTES
 # ══════════════════════════════════════════════════════
-def _serial(v):
-    """Sérialise les types non-JSON natifs (dates, bytes) pour l'export."""
-    if isinstance(v, (datetime, _date)):
-        return v.isoformat()
-    if isinstance(v, bytes):
-        return base64.b64encode(v).decode("ascii")
-    return v
-
-
-def _dump_all(model, exclude=()):
-    """Retourne toutes les lignes d'un modèle sous forme de dicts sérialisables."""
-    async def _run(db):
-        rows = (await db.execute(select(model))).scalars().all()
-        out = []
-        for obj in rows:
-            d = {}
-            for col in model.__table__.columns:
-                if col.name in exclude:
-                    continue
-                d[col.name] = _serial(getattr(obj, col.name))
-            out.append(d)
-        return out
-    return _run
-
-
 @app.get("/api/admin/sauvegarde")
 async def sauvegarde_complete(db: AsyncSession = Depends(get_db), current: User = Depends(superadmin_only)):
     """Export JSON complet de toute la base CODISS (y compris les photos de rapports en base64),
@@ -1352,6 +1438,31 @@ async def restaurer_complete(
         raise HTTPException(400, f"Échec de la restauration : {type(e).__name__}: {e}")
 
     return {"ok": True, "mode": mode, "compteurs": compteurs}
+
+
+@app.get("/api/admin/sauvegarde-auto/statut")
+async def statut_sauvegarde_auto(_=Depends(superadmin_only)):
+    """État de la sauvegarde automatique programmée : dernière exécution, résultat, intervalle."""
+    return {
+        "activee": bool(_GH_TOKEN),
+        "intervalle_heures": _BACKUP_INTERVAL_SECONDS // 3600,
+        "derniere_execution": _last_full_backup_info["date"],
+        "derniere_reussie": _last_full_backup_info["ok"],
+        "derniers_compteurs": _last_full_backup_info["compteurs"],
+    }
+
+
+@app.post("/api/admin/sauvegarde-auto/declencher")
+async def declencher_sauvegarde_auto(current: User = Depends(superadmin_only), db: AsyncSession = Depends(get_db)):
+    """Déclenche immédiatement une sauvegarde automatique complète vers GitHub (hors attente du prochain cycle)."""
+    if not _GH_TOKEN:
+        raise HTTPException(400, "GITHUB_TOKEN non configuré sur ce déploiement — sauvegarde automatique indisponible")
+    await backup_complete_to_github()
+    await journaliser(db, current, "sauvegarde_auto_manuelle", {"reussie": _last_full_backup_info["ok"]})
+    await db.commit()
+    if not _last_full_backup_info["ok"]:
+        raise HTTPException(502, "La sauvegarde vers GitHub a échoué (voir les logs serveur)")
+    return _last_full_backup_info
 
 
 def _csv_response(headers: list, rows: list, filename: str):
