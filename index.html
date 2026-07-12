@@ -1092,6 +1092,10 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
         <span class="icon">🗺️</span>
         <span data-fr="Régions" data-ar="المناطق">Régions</span>
       </div>
+      <div class="nav-item" onclick="showSection('journal')" id="nav-journal">
+        <span class="icon">📜</span>
+        <span data-fr="Journal d'activité" data-ar="سجل النشاط">Journal d'activité</span>
+      </div>
       <div class="nav-item" onclick="showSection('system')" id="nav-system" style="display:none">
         <span class="icon">🛡️</span>
         <span data-fr="Système" data-ar="النظام">Système</span>
@@ -1703,6 +1707,41 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
       </div>
 
       <!-- ══════════════════════════════════════════
+           SECTION : JOURNAL D'ACTIVITÉ
+      ══════════════════════════════════════════ -->
+      <div id="section-journal" class="section-hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📜 Journal d'activité</div>
+              <div class="panel-subtitle">Historique des actions importantes (connexions, vérifications, créations, suppressions)</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="journal-filter" onchange="loadJournal(0)" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:.83rem;outline:none;">
+                <option value="">Toutes les actions</option>
+              </select>
+              <button class="btn-pdf" onclick="loadJournal(journalState.offset)" title="Actualiser">⟳ Actualiser</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Action</th><th>Utilisateur</th><th>Branche</th><th>Détails</th><th>Date</th></tr></thead>
+              <tbody id="journal-tbody">
+                <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3)">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:.82rem;color:var(--text2)">
+            <span id="journal-pagination-info"></span>
+            <div style="display:flex;gap:8px">
+              <button class="btn-secondary" style="max-width:100px;padding:6px 12px" onclick="journalPage(-1)">← Précédent</button>
+              <button class="btn-secondary" style="max-width:100px;padding:6px 12px" onclick="journalPage(1)">Suivant →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
            SECTION : SYSTÈME (sauvegarde & restauration)
       ══════════════════════════════════════════ -->
       <div id="section-system" class="section-hidden">
@@ -2255,14 +2294,16 @@ function initApp() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 const ALL_SECTIONS = ['new-report','my-reports','my-branch','dashboard','map',
-                      'branches','reports','users','regions','profile','system'];
+                      'branches','reports','users','regions','profile','system','journal'];
 const PAGE_TITLES = {
   fr: { 'new-report':'Nouveau rapport', 'my-reports':'Mes rapports', 'my-branch':'Ma branche',
         dashboard:'Tableau de bord', map:'Carte nationale', branches:'Branches',
-        reports:'Rapports', users:'Utilisateurs', regions:'Régions', profile:'Mon profil', system:'Système' },
+        reports:'Rapports', users:'Utilisateurs', regions:'Régions', profile:'Mon profil', system:'Système',
+        journal:'Journal d\'activité' },
   en: { 'new-report':'New Report', 'my-reports':'My Reports', 'my-branch':'My Branch',
         dashboard:'Dashboard', map:'National Map', branches:'Branches',
-        reports:'Reports', users:'Users', regions:'Regions', profile:'My Profile', system:'System' }
+        reports:'Reports', users:'Users', regions:'Regions', profile:'My Profile', system:'System',
+        journal:'Activity Log' }
 };
 
 function showSection(name) {
@@ -2286,6 +2327,7 @@ function showSection(name) {
   else if (name === 'profile')     loadProfile();
   else if (name === 'dashboard')   loadDashboard();
   else if (name === 'regions')     loadRegions();
+  else if (name === 'journal')     loadJournal(0);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -5119,6 +5161,67 @@ async function restaurerSauvegarde() {
   } catch (e) {
     status.textContent = '❌ ' + e.message;
   }
+}
+
+// ═══════════════════════════════════════════════════════
+// JOURNAL D'ACTIVITÉ
+// ═══════════════════════════════════════════════════════
+const journalState = { offset: 0, limit: 20, total: 0, filtersLoaded: false };
+
+async function loadJournal(offset = 0) {
+  journalState.offset = Math.max(0, offset);
+  const tbody = document.getElementById('journal-tbody');
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3)">Chargement…</td></tr>`;
+  const action = document.getElementById('journal-filter').value;
+  try {
+    const params = new URLSearchParams({ limit: journalState.limit, offset: journalState.offset });
+    if (action) params.set('action', action);
+    const d = await api('GET', `/admin/journal?${params.toString()}`);
+    journalState.total = d.total;
+
+    if (!journalState.filtersLoaded) {
+      const select = document.getElementById('journal-filter');
+      const labels = { connexion:"🔑 Connexion", creation_branche:"🏛 Création de branche",
+        verification_branche:"✅ Vérification de branche", rejet_branche:"❌ Rejet de branche",
+        affectation_secretaire:"👤 Affectation de secrétaire", creation_utilisateur:"➕ Création d'utilisateur",
+        suppression_utilisateur:"🗑 Suppression d'utilisateur", revue_rapport:"📄 Revue de rapport" };
+      d.action_types.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a; opt.textContent = labels[a] || a;
+        select.appendChild(opt);
+      });
+      journalState.filtersLoaded = true;
+    }
+
+    if (!d.entries.length) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3)">Aucune activité enregistrée.</td></tr>`;
+    } else {
+      tbody.innerHTML = d.entries.map(e => {
+        const details = Object.entries(e.details || {})
+          .filter(([k]) => k !== 'invitation')
+          .map(([k,v]) => `${k}: ${v}`).join(', ');
+        const date = e.created_at ? new Date(e.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US') : '—';
+        return `<tr>
+          <td>${e.action_label}</td>
+          <td>${e.user_name}</td>
+          <td>${e.branch_name || '—'}</td>
+          <td style="font-size:.78rem;color:var(--text2)">${details || '—'}</td>
+          <td style="font-size:.8rem;white-space:nowrap">${date}</td>
+        </tr>`;
+      }).join('');
+    }
+    const debut = journalState.total ? journalState.offset + 1 : 0;
+    const fin = Math.min(journalState.offset + journalState.limit, journalState.total);
+    document.getElementById('journal-pagination-info').textContent = `${debut}–${fin} sur ${journalState.total}`;
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--red)">${e.message}</td></tr>`;
+  }
+}
+
+function journalPage(direction) {
+  const next = journalState.offset + direction * journalState.limit;
+  if (next < 0 || next >= journalState.total) return;
+  loadJournal(next);
 }
 
 // ══════════════════════════════════════════════════════════════

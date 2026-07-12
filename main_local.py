@@ -140,6 +140,28 @@ def superadmin_only(u: User = Depends(current_user)):
         raise HTTPException(403, "Réservé au super administrateur")
     return u
 
+
+async def journaliser(db: AsyncSession, user: User, action: str, details: dict = None,
+                       branch_id: str = None, request: Request = None):
+    """Enregistre une entrée dans le journal d'activité. Best-effort : une erreur ici
+    ne doit jamais faire échouer l'action métier en cours."""
+    try:
+        ip = None
+        if request is not None:
+            ip = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
+            if ip and "," in ip:
+                ip = ip.split(",")[0].strip()
+        db.add(ActivityLog(
+            user_id=user.id if user else None,
+            branch_id=branch_id,
+            action=action,
+            details=details or {},
+            ip_address=ip,
+        ))
+        await db.flush()
+    except Exception as e:
+        print(f"⚠️ journaliser: {type(e).__name__}: {e}")
+
 # ── Démarrage + auto-seed ─────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -398,6 +420,8 @@ async def login(data: dict, request: Request, db: AsyncSession = Depends(get_db)
         bu = await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))
         row = bu.scalar_one_or_none()
         if row: branch_id = row.branch_id
+    await journaliser(db, u, "connexion", {"role": u.role}, branch_id=branch_id, request=request)
+    await db.commit()
     return {
         "access_token": make_token({"sub": u.id, "role": u.role}),
         "token_type": "bearer",
@@ -573,11 +597,13 @@ async def get_branch_fiche(bid: str, db: AsyncSession = Depends(get_db), u: User
     }
 
 @app.post("/api/branches", status_code=201)
-async def create_branch(data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+async def create_branch(data: dict, request: Request, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     ex = await db.execute(select(Branch).where(Branch.code == data.get("code","")))
     if ex.scalar_one_or_none(): raise HTTPException(400, "Code déjà utilisé")
     b = Branch(**{k: v for k, v in data.items() if hasattr(Branch, k)})
     db.add(b)
+    await db.flush()
+    await journaliser(db, u, "creation_branche", {"nom": b.name, "code": b.code}, branch_id=b.id, request=request)
     await db.commit()
     await db.refresh(b)
     return _branch_dict(b)
@@ -593,22 +619,23 @@ async def update_branch(bid: str, data: dict, db: AsyncSession = Depends(get_db)
     return _branch_dict(b)
 
 @app.post("/api/branches/{bid}/verify")
-async def verify_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+async def verify_branch(bid: str, request: Request, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404)
     b.is_verified = True; b.verified_at = datetime.utcnow()
     b.verified_by = u.id; b.status = "active"
+    await journaliser(db, u, "verification_branche", {"nom": b.name}, branch_id=b.id, request=request)
     await db.commit()
     return {"message": f"{b.name} vérifiée et activée"}
 
 @app.post("/api/branches/{bid}/assign-user")
-async def assign_user(bid: str, user_id: str, role: str = "secretary", db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+async def assign_user(bid: str, user_id: str, request: Request, role: str = "secretary", db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     # Vérifier que la branche existe
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404, "Branche introuvable")
     # Vérifier que l'utilisateur existe
-    u = await db.get(User, user_id)
-    if not u: raise HTTPException(404, "Utilisateur introuvable")
+    assigned_user = await db.get(User, user_id)
+    if not assigned_user: raise HTTPException(404, "Utilisateur introuvable")
     # Supprimer l'éventuelle liaison précédente de cet utilisateur
     existing = await db.execute(select(BranchUser).where(BranchUser.user_id == user_id))
     old = existing.scalar_one_or_none()
@@ -616,8 +643,10 @@ async def assign_user(bid: str, user_id: str, role: str = "secretary", db: Async
         await db.delete(old)
     bu = BranchUser(user_id=user_id, branch_id=bid, role=role)
     db.add(bu)
+    await journaliser(db, u, "affectation_secretaire", {"secretaire": assigned_user.full_name, "branche": b.name},
+                       branch_id=bid, request=request)
     await db.commit()
-    return {"ok": True, "user": u.full_name, "branch": b.name}
+    return {"ok": True, "user": assigned_user.full_name, "branch": b.name}
 
 @app.get("/api/admin/branches")
 async def list_branches_admin(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
@@ -837,7 +866,7 @@ async def list_reports(db: AsyncSession = Depends(get_db), u: User = Depends(cur
     return [_report_dict(rp) for rp in r.scalars().all()]
 
 @app.patch("/api/reports/{rid}/review")
-async def review_report(rid: str, data: dict, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+async def review_report(rid: str, data: dict, request: Request, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     rp = await db.get(PresenceReport, rid)
     if not rp: raise HTTPException(404)
     status = data.get("status")
@@ -866,6 +895,7 @@ async def review_report(rid: str, data: dict, db: AsyncSession = Depends(get_db)
             body_en=f"Your report has been {verdict_en} by administration.{motif_en}",
             type="success" if status == "approved" else "warning",
         ))
+    await journaliser(db, u, "revue_rapport", {"titre": rp.title, "statut": status}, branch_id=rp.branch_id, request=request)
     await db.commit()
     return {"ok": True, "status": status}
 
@@ -1125,6 +1155,62 @@ async def regions_ranking(db: AsyncSession = Depends(get_db), _=Depends(admin_on
     top5 = ranking[:5]
     bottom5 = sorted(ranking, key=lambda x: x["total_branches"])[:5]
     return {"ranking": ranking, "top5": top5, "bottom5": bottom5}
+
+
+# ══════════════════════════════════════════════════════
+# JOURNAL D'ACTIVITÉ
+# ══════════════════════════════════════════════════════
+ACTION_LABELS = {
+    "connexion": "🔑 Connexion",
+    "creation_branche": "🏛 Création de branche",
+    "verification_branche": "✅ Vérification de branche",
+    "rejet_branche": "❌ Rejet de branche",
+    "affectation_secretaire": "👤 Affectation de secrétaire",
+    "creation_utilisateur": "➕ Création d'utilisateur",
+    "suppression_utilisateur": "🗑 Suppression d'utilisateur",
+    "revue_rapport": "📄 Revue de rapport",
+}
+
+
+@app.get("/api/admin/journal")
+async def get_journal(
+    action: str = None, limit: int = 100, offset: int = 0,
+    db: AsyncSession = Depends(get_db), _=Depends(admin_only),
+):
+    """Journal d'activité paginé, filtrable par type d'action."""
+    limit = max(1, min(limit, 200))
+    q = select(ActivityLog)
+    if action:
+        q = q.where(ActivityLog.action == action)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    rows = (await db.execute(
+        q.order_by(ActivityLog.created_at.desc()).limit(limit).offset(offset)
+    )).scalars().all()
+
+    user_ids = {r.user_id for r in rows if r.user_id}
+    branch_ids = {r.branch_id for r in rows if r.branch_id}
+    users_map = {}
+    if user_ids:
+        for u in (await db.execute(select(User).where(User.id.in_(user_ids)))).scalars().all():
+            users_map[u.id] = u.full_name
+    branches_map = {}
+    if branch_ids:
+        for b in (await db.execute(select(Branch).where(Branch.id.in_(branch_ids)))).scalars().all():
+            branches_map[b.id] = b.name
+
+    entries = [{
+        "id": r.id,
+        "action": r.action,
+        "action_label": ACTION_LABELS.get(r.action, r.action),
+        "details": r.details or {},
+        "user_name": users_map.get(r.user_id, "Système"),
+        "branch_name": branches_map.get(r.branch_id),
+        "ip_address": r.ip_address,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]
+
+    return {"total": total, "limit": limit, "offset": offset, "entries": entries,
+            "action_types": list(ACTION_LABELS.keys())}
 
 
 # ══════════════════════════════════════════════════════
@@ -1405,7 +1491,7 @@ async def _auto_link_branch(u, db: AsyncSession):
     await db.commit()
 
 @app.post("/api/admin/users", status_code=201)
-async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+async def create_user(data: dict, request: Request, db: AsyncSession = Depends(get_db), admin_user=Depends(admin_only)):
     ex = await db.execute(select(User).where(User.email == data["email"]))
     if ex.scalar_one_or_none(): raise HTTPException(400, "Email déjà utilisé")
 
@@ -1424,6 +1510,8 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
             department_id=data.get("department_id") or None,
         )
         db.add(u)
+        await db.flush()
+        await journaliser(db, admin_user, "creation_utilisateur", {"nom": u.full_name, "email": u.email, "role": u.role}, request=request)
         await db.commit()
         await db.refresh(u)
         await _auto_link_branch(u, db)
@@ -1454,6 +1542,8 @@ async def create_user(data: dict, request: Request, db: AsyncSession = Depends(g
             department_id=data.get("department_id") or None,
         )
         db.add(u)
+        await db.flush()
+        await journaliser(db, admin_user, "creation_utilisateur", {"nom": u.full_name, "email": u.email, "role": u.role, "invitation": True}, request=request)
         await db.commit()
         await db.refresh(u)
         await _auto_link_branch(u, db)
@@ -1709,17 +1799,19 @@ async def get_report(rid: str, db: AsyncSession = Depends(get_db), u: User = Dep
 # BRANCHES — REJET
 # ══════════════════════════════════════════════════════
 @app.post("/api/branches/{bid}/reject")
-async def reject_branch(bid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+async def reject_branch(bid: str, request: Request, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404)
     b.status = "rejected"
+    await journaliser(db, u, "rejet_branche", {"nom": b.name}, branch_id=bid, request=request)
     await db.commit()
     return {"message": f"{b.name} rejetée"}
 
 @app.delete("/api/admin/users/{uid}")
-async def delete_user(uid: str, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
+async def delete_user(uid: str, request: Request, db: AsyncSession = Depends(get_db), u=Depends(admin_only)):
     user = await db.get(User, uid)
     if not user: raise HTTPException(404)
+    await journaliser(db, u, "suppression_utilisateur", {"nom": user.full_name, "email": user.email}, request=request)
     await db.delete(user)
     await db.commit()
     await backup_users_to_github(db=db)
