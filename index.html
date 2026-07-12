@@ -414,6 +414,13 @@ body.dark-mode .topbar{background:rgba(10,14,26,.85);}
 .map-filter-chip:hover{border-color:var(--green2);}
 .map-filter-chip input{cursor:pointer;}
 .map-cov-btn:hover{border-color:var(--green2);}
+.map-mode-btn{
+  padding:8px 14px;border:none;background:var(--bg1);color:var(--text2);
+  cursor:pointer;font-size:.82rem;font-weight:600;transition:.15s;
+}
+.map-mode-btn.active{background:var(--green);color:#fff;}
+body.dark-mode .map-mode-btn.active{color:#000;}
+.map-mode-btn:not(.active):hover{background:var(--bg4);}
 
 /* TABLE */
 .table-wrap{overflow-x:auto;}
@@ -1535,6 +1542,10 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
       ══════════════════════════════════════════ -->
       <div id="section-map" class="section-hidden">
         <div class="map-toolbar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--gray2);border-radius:10px">
+          <div class="map-mode-toggle" style="display:flex;border:1.5px solid var(--gray2);border-radius:8px;overflow:hidden;flex-shrink:0">
+            <button id="map-mode-branches" class="map-mode-btn active" onclick="setMapMode('branches')">🏛 Branches</button>
+            <button id="map-mode-reports" class="map-mode-btn" onclick="setMapMode('reports')">📄 Rapports</button>
+          </div>
           <input id="map-search" type="text" placeholder="🔍 Rechercher un secrétariat…" oninput="filterMapMarkers()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--gray2);border-radius:7px;font-size:.85rem;background:var(--bg1);color:var(--text1)">
           <label class="map-filter-chip"><input type="checkbox" id="mf-active" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--green2)"></span> Actives</label>
           <label class="map-filter-chip"><input type="checkbox" id="mf-pending" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--orange)"></span> En attente</label>
@@ -1542,12 +1553,18 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
           <label class="map-filter-chip"><input type="checkbox" id="mf-verified" onchange="filterMapMarkers()"> ✓ Vérifiées seulement</label>
           <button onclick="toggleCoveragePanel()" class="map-cov-btn" style="padding:8px 12px;border:1.5px solid var(--gray2);border-radius:7px;background:var(--bg1);color:var(--text1);cursor:pointer;font-size:.82rem;font-weight:600">🗺️ Couverture régions</button>
         </div>
-        <div class="map-legend">
+        <div class="map-legend" id="map-legend-branches">
           <strong style="font-size:.82rem;color:var(--text2)" data-fr="Légende :" data-ar="المفتاح:">Légende :</strong>
           <span class="legend-item"><span class="legend-dot" style="background:var(--green2)"></span><span data-fr="Branche active" data-ar="فرع نشط">Branche active</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:var(--orange)"></span><span data-fr="En attente" data-ar="قيد الانتظار">En attente</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span><span data-fr="Suspendue/Rejetée" data-ar="موقوف/مرفوض">Suspendue/Rejetée</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:#888"></span><span data-fr="Sans présence CODISS" data-ar="لا يوجد تواجد لـ CODISS">Sans présence CODISS</span></span>
+        </div>
+        <div class="map-legend section-hidden" id="map-legend-reports">
+          <strong style="font-size:.82rem;color:var(--text2)">Légende (ancienneté du rapport) :</strong>
+          <span class="legend-item"><span class="legend-dot" style="background:#00c853"></span><span>Récent (≤ 30 jours)</span></span>
+          <span class="legend-item"><span class="legend-dot" style="background:#ff9100"></span><span>À surveiller (31–90 jours)</span></span>
+          <span class="legend-item"><span class="legend-dot" style="background:#78909c"></span><span>Ancien (&gt; 90 jours)</span></span>
         </div>
         <div style="position:relative">
           <div id="map"></div>
@@ -1896,6 +1913,7 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
     <h2 id="modal-branch-fiche-title">📋 Fiche secrétariat</h2>
     <div id="modal-branch-fiche-body"><div style="color:var(--text3)">Chargement…</div></div>
     <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn-pdf" onclick="exportBranchFichePDF()">📄 Exporter PDF</button>
       <button class="action-btn gray" onclick="closeModal('modal-branch-fiche')" data-fr="Fermer" data-ar="إغلاق">Fermer</button>
     </div>
   </div>
@@ -3336,6 +3354,7 @@ async function openBranchFiche(branchId) {
   body.innerHTML = `<div style="color:var(--text3)">Chargement…</div>`;
   try {
     const d = await api('GET', `/branches/${branchId}/fiche`);
+    window._currentBrancheFiche = d;
     const b = d.branch;
     document.getElementById('modal-branch-fiche-title').textContent = `📋 ${b.name}`;
 
@@ -4491,6 +4510,77 @@ async function exportPDF(type) {
   }
 }
 
+async function exportBranchFichePDF() {
+  const d = window._currentBrancheFiche;
+  if (!d) return;
+  const b = d.branch, s = d.stats;
+  try {
+    const secHtml = d.secretaires.length
+      ? d.secretaires.map(sec => `
+          <tr>
+            <td><strong>${sec.full_name}</strong></td>
+            <td>${sec.email}</td>
+            <td>${sec.phone || '—'}</td>
+            <td>${sec.is_active ? '<span class="badge b-active">Actif</span>' : '<span class="badge b-rejected">Inactif</span>'}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;color:var(--text3)">Aucun secrétaire assigné</td></tr>`;
+
+    const reportsHtml = d.reports.length
+      ? d.reports.map(r => `
+          <tr>
+            <td>${r.title}</td>
+            <td>${r.report_type}</td>
+            <td>${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-CI') : '—'}</td>
+            <td><span class="badge b-${r.status}">${r.status}</span></td>
+            <td style="text-align:center">${r.nb_photos || 0}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="5" style="text-align:center;color:var(--text3)">Aucun rapport soumis</td></tr>`;
+
+    const html = pdfHeader(b.name, `Fiche secrétariat — ${b.code}`) + `
+      <div class="pdf-section">
+        <div class="pdf-section-title">Informations générales</div>
+        <table>
+          <tbody>
+            <tr><td style="font-weight:700;width:180px">Code</td><td>${b.code}</td></tr>
+            <tr><td style="font-weight:700">Ville</td><td>${b.city || '—'}</td></tr>
+            <tr><td style="font-weight:700">Région</td><td>${d.region ? d.region.name_fr : '—'}</td></tr>
+            <tr><td style="font-weight:700">Département</td><td>${d.department ? d.department.name_fr : '—'}</td></tr>
+            <tr><td style="font-weight:700">Statut</td><td><span class="badge b-${b.status}">${b.status}</span></td></tr>
+            <tr><td style="font-weight:700">Vérifiée</td><td>${b.is_verified ? 'Oui' : 'Non'}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-val">${s.total_reports}</div><div class="stat-lbl">Rapports soumis</div></div>
+        <div class="stat-box"><div class="stat-val">${s.approved_reports}</div><div class="stat-lbl">Approuvés</div></div>
+        <div class="stat-box orange"><div class="stat-val">${s.pending_reports}</div><div class="stat-lbl">En attente</div></div>
+        <div class="stat-box blue"><div class="stat-val">${s.total_activities}</div><div class="stat-lbl">Activités menées</div></div>
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">Secrétaire(s)</div>
+        <table>
+          <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th></tr></thead>
+          <tbody>${secHtml}</tbody>
+        </table>
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">Historique des rapports</div>
+        <table>
+          <thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Statut</th><th>Photos</th></tr></thead>
+          <tbody>${reportsHtml}</tbody>
+        </table>
+      </div>
+      ${pdfFooter()}`;
+
+    openPDF(html);
+  } catch(e) {
+    alert((STATE.lang==='fr'?'Erreur export PDF : ':'PDF export error: ') + e.message);
+  }
+}
+
 // Export PDF d'un rapport individuel (depuis le modal)
 let _currentReportData = null;
 
@@ -5406,6 +5496,62 @@ function filterMapMarkers() {
 }
 
 // Panneau de couverture par région (choroplèthe textuelle)
+let _mapMode = 'branches';
+
+function setMapMode(mode) {
+  if (_mapMode === mode) return;
+  _mapMode = mode;
+  document.getElementById('map-mode-branches').classList.toggle('active', mode === 'branches');
+  document.getElementById('map-mode-reports').classList.toggle('active', mode === 'reports');
+  document.getElementById('map-legend-branches').classList.toggle('section-hidden', mode !== 'branches');
+  document.getElementById('map-legend-reports').classList.toggle('section-hidden', mode !== 'reports');
+  document.getElementById('mf-active').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
+  document.getElementById('mf-pending').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
+  document.getElementById('mf-other').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
+  document.getElementById('mf-verified').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
+  if (STATE.clusterLayer) STATE.clusterLayer.clearLayers();
+  if (mode === 'branches') {
+    renderMapMarkers();
+  } else {
+    loadReportsMapPoints();
+  }
+}
+
+function reportAgeColor(anciennete) {
+  return anciennete === 'recent' ? '#00c853' : anciennete === 'a_surveiller' ? '#ff9100' : '#78909c';
+}
+
+async function loadReportsMapPoints() {
+  if (!STATE.map) return;
+  try {
+    const d = await api('GET', '/map/reports-points');
+    window._mapReportData = d.points || [];
+  } catch(e) { console.error(e); window._mapReportData = []; }
+  renderReportMarkers();
+}
+
+function renderReportMarkers() {
+  if (!STATE.map || _mapMode !== 'reports') return;
+  if (!STATE.clusterLayer) {
+    STATE.clusterLayer = (window.L && L.markerClusterGroup)
+      ? L.markerClusterGroup({ maxClusterRadius: 45, spiderfyOnMaxZoom: true, showCoverageOnHover: false })
+      : L.layerGroup();
+    STATE.map.addLayer(STATE.clusterLayer);
+  }
+  STATE.clusterLayer.clearLayers();
+  (window._mapReportData || []).forEach(p => {
+    if (!p.latitude || !p.longitude) return;
+    const m = L.circleMarker([p.latitude, p.longitude], {
+      radius: 8, fillColor: reportAgeColor(p.anciennete),
+      color: '#fff', weight: 2, opacity: 1, fillOpacity: .88,
+    });
+    const ageTxt = p.age_jours != null ? `${p.age_jours} jour(s)` : 'date inconnue';
+    m.bindTooltip(`${p.title} — ${p.branch_name} (${ageTxt})`, { direction: 'top', offset: [0, -8] });
+    m.on('click', () => showReportDetail(p.id));
+    STATE.clusterLayer.addLayer(m);
+  });
+}
+
 let _coverageLoaded = false;
 async function toggleCoveragePanel() {
   const panel = document.getElementById('coverage-panel');

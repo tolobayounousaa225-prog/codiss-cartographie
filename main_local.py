@@ -1123,6 +1123,39 @@ async def map_stats(db: AsyncSession = Depends(get_db), _=Depends(current_user))
         "points": points
     }
 
+
+@app.get("/api/map/reports-points")
+async def map_reports_points(db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    """Points géolocalisés des rapports de présence, avec ancienneté pour code couleur
+    (récent / à surveiller / ancien)."""
+    q = select(PresenceReport, Branch.name).join(Branch, PresenceReport.branch_id == Branch.id).where(
+        PresenceReport.latitude != None, PresenceReport.longitude != None
+    )
+    if u.role == "branch":
+        bu = (await db.execute(select(BranchUser).where(BranchUser.user_id == u.id))).scalar_one_or_none()
+        q = q.where(PresenceReport.branch_id == bu.branch_id) if bu else q.where(PresenceReport.branch_id == None)
+    rows = (await db.execute(q.order_by(PresenceReport.created_at.desc()))).all()
+
+    aujourdhui = datetime.utcnow()
+    points = []
+    for rp, branch_name in rows:
+        age_jours = (aujourdhui - rp.created_at).days if rp.created_at else None
+        if age_jours is None:
+            anciennete = "inconnue"
+        elif age_jours <= 30:
+            anciennete = "recent"
+        elif age_jours <= 90:
+            anciennete = "a_surveiller"
+        else:
+            anciennete = "ancien"
+        points.append({
+            "id": rp.id, "title": rp.title, "branch_name": branch_name,
+            "latitude": rp.latitude, "longitude": rp.longitude,
+            "status": rp.status, "created_at": rp.created_at.isoformat() if rp.created_at else None,
+            "age_jours": age_jours, "anciennete": anciennete,
+        })
+    return {"total": len(points), "points": points}
+
 @app.get("/api/map/regions")
 async def list_regions(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
     r = await db.execute(select(Region).order_by(Region.name_fr))
