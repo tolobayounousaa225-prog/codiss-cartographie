@@ -2111,6 +2111,18 @@ const API = (window.location.hostname === 'localhost' || window.location.hostnam
   ? 'http://localhost:8000/api'
   : '/api';
 
+// Échappe le HTML dangereux dans un texte libre avant insertion via innerHTML
+// (protection contre l'injection de script — ex. titre/description de rapport saisi par un secrétaire)
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 let STATE = {
   token: null, user: null, lang: 'fr',
   gpsLat: null, gpsLng: null, gpsAccuracy: null,
@@ -2920,16 +2932,16 @@ function renderBranchCards(branches) {
   }
   const statusColor = { active:'var(--green2)', pending:'var(--orange)', suspended:'var(--red)', rejected:'var(--red)' };
   grid.innerHTML = branches.map(b => `
-    <div class="branch-select-card" data-id="${b.id}" data-name="${b.name}" onclick="confirmSelectBranch('${b.id}','${b.name.replace(/'/g,"\\'")}','${b.city}')"
+    <div class="branch-select-card" data-id="${b.id}" data-name="${esc(b.name)}" onclick="confirmSelectBranch('${b.id}','${b.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(b.city||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')"
       style="background:var(--white);border:2px solid var(--gray2);border-radius:12px;padding:18px;cursor:pointer;transition:.2s;position:relative"
       onmouseover="this.style.borderColor='var(--green2)';this.style.transform='translateY(-2px)'"
       onmouseout="this.style.borderColor='var(--gray2)';this.style.transform='none'">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <span style="font-family:monospace;font-size:.72rem;background:var(--gray);padding:2px 8px;border-radius:6px;color:var(--text2)">${b.code}</span>
+        <span style="font-family:monospace;font-size:.72rem;background:var(--gray);padding:2px 8px;border-radius:6px;color:var(--text2)">${esc(b.code)}</span>
         <span class="badge-status badge-${b.status}">${t('status_'+b.status)||b.status}</span>
       </div>
-      <div style="font-weight:800;font-size:.95rem;margin-bottom:4px">${b.name}</div>
-      <div style="font-size:.8rem;color:var(--text2);margin-bottom:10px">📍 ${b.city}</div>
+      <div style="font-weight:800;font-size:.95rem;margin-bottom:4px">${esc(b.name)}</div>
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:10px">📍 ${esc(b.city)}</div>
       <div style="display:flex;gap:16px;font-size:.78rem;color:var(--text3)">
         <span>👥 ${b.member_count||0} membres</span>
         <span>${b.is_verified?'<span style="color:var(--green);font-weight:700">✓ Vérifié</span>':'⏳ Non vérifié'}</span>
@@ -3149,11 +3161,11 @@ async function loadMyReports() {
     tbody.innerHTML = reports.map(r => `
       <tr>
         <td>
-          <div style="font-weight:600">${r.title}</div>
+          <div style="font-weight:600">${esc(r.title)}</div>
           <div style="margin-top:5px">${readReceipt(r)}</div>
           ${r.status==='rejected'&&r.review_notes?`
             <div style="font-size:.75rem;background:#fce4ec;border-left:3px solid var(--red);padding:4px 8px;border-radius:0 5px 5px 0;margin-top:5px;color:var(--red)">
-              ❌ <strong>${STATE.lang==='fr'?'Motif :':'Reason:'}</strong> ${r.review_notes}
+              ❌ <strong>${STATE.lang==='fr'?'Motif :':'Reason:'}</strong> ${esc(r.review_notes)}
             </div>`:''}
           ${r.status==='rejected'&&r.branch_response?`
             <div style="font-size:.75rem;background:#e3f2fd;border-left:3px solid var(--blue);padding:4px 8px;border-radius:0 5px 5px 0;margin-top:4px;color:var(--blue)">
@@ -3373,7 +3385,7 @@ async function openBranchFiche(branchId) {
     const reportsHtml = d.reports.length
       ? `<table><thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Statut</th><th>📷</th></tr></thead><tbody>` +
         d.reports.map(r => `<tr>
-          <td>${r.title}</td>
+          <td>${esc(r.title)}</td>
           <td><span class="badge-status badge-submitted">${r.report_type}</span></td>
           <td style="font-size:.8rem">${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-CI') : '—'}</td>
           <td><span class="badge-status badge-${r.status}">${r.status}</span></td>
@@ -3507,7 +3519,7 @@ function renderReportsPaged(filtered) {
         <td>
           <div style="display:flex;align-items:center;gap:7px">
             ${!r.viewed_by_admin&&r.status==='submitted'?'<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0"></span>':''}
-            <strong>${r.title}</strong>
+            <strong>${esc(r.title)}</strong>
           </div>
         </td>
         <td style="font-size:.8rem;color:var(--text2)">${r.branch_name||'—'}</td>
@@ -4070,7 +4082,7 @@ function renderGlobalSearchResults(d) {
     html += `<div class="gs-section-title">📄 Rapports</div>` + d.reports.map(r => `
       <div class="gs-result-item" onclick="goToSearchResult('report','${r.id}')">
         <div class="gs-result-icon">📄</div>
-        <div class="gs-result-main"><div class="gs-result-title">${r.title}</div><div class="gs-result-sub">${r.branch_name}</div></div>
+        <div class="gs-result-main"><div class="gs-result-title">${esc(r.title)}</div><div class="gs-result-sub">${esc(r.branch_name)}</div></div>
         <span class="badge-status badge-${r.status}" style="font-size:.65rem">${r.status}</span>
       </div>`).join('');
   }
@@ -4441,7 +4453,7 @@ async function exportPDF(type) {
           <thead><tr><th>Titre</th><th>Type</th><th>Date soumission</th><th>Statut</th></tr></thead>
           <tbody>
             ${reports.map(r=>`<tr>
-              <td><strong>${r.title}</strong></td>
+              <td><strong>${esc(r.title)}</strong></td>
               <td>${r.report_type}</td>
               <td>${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</td>
               <td><span class="badge b-${r.status}">${t('status_'+r.status)||r.status}</span></td>
@@ -4528,7 +4540,7 @@ async function exportBranchFichePDF() {
     const reportsHtml = d.reports.length
       ? d.reports.map(r => `
           <tr>
-            <td>${r.title}</td>
+            <td>${esc(r.title)}</td>
             <td>${r.report_type}</td>
             <td>${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-CI') : '—'}</td>
             <td><span class="badge b-${r.status}">${r.status}</span></td>
@@ -4612,7 +4624,7 @@ async function showReportDetail(id) {
             <div style="width:32px;height:32px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">🛡</div>
             <div style="flex:1">
               <div style="font-size:.7rem;font-weight:800;color:var(--red);margin-bottom:4px">${STATE.lang==='fr'?'ADMINISTRATION — Motif du rejet':'ADMINISTRATION — Rejection reason'}</div>
-              <div style="background:rgba(255,23,68,.12);border-radius:0 10px 10px 10px;padding:10px 14px;font-size:.88rem">${r.review_notes}</div>
+              <div style="background:rgba(255,23,68,.12);border-radius:0 10px 10px 10px;padding:10px 14px;font-size:.88rem">${esc(r.review_notes)}</div>
               ${r.reviewed_at?`<div style="font-size:.7rem;color:var(--text3);margin-top:3px">${new Date(r.reviewed_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US')}</div>`:''}
             </div>
           </div>`;
@@ -4623,7 +4635,7 @@ async function showReportDetail(id) {
             <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0">👤</div>
             <div style="flex:1;text-align:right">
               <div style="font-size:.7rem;font-weight:800;color:var(--blue);margin-bottom:4px">${STATE.lang==='fr'?'SECRÉTAIRE — Réponse':'SECRETARY — Reply'}</div>
-              <div style="background:rgba(68,138,255,.12);border-radius:10px 0 10px 10px;padding:10px 14px;font-size:.88rem;text-align:left">${r.branch_response}</div>
+              <div style="background:rgba(68,138,255,.12);border-radius:10px 0 10px 10px;padding:10px 14px;font-size:.88rem;text-align:left">${esc(r.branch_response)}</div>
             </div>
           </div>`;
       }
@@ -4642,7 +4654,7 @@ async function showReportDetail(id) {
         <div><span style="font-size:.78rem;color:var(--text2)">Date</span><br><strong>${r.created_at?new Date(r.created_at).toLocaleString(STATE.lang==='fr'?'fr-CI':'en-US'):'—'}</strong></div>
         <div><span style="font-size:.78rem;color:var(--text2)">GPS</span><br><strong>${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</strong></div>
       </div>
-      ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${r.description}</div>`:''}
+      ${r.description?`<div style="background:var(--bg4);padding:12px;border-radius:8px;font-size:.88rem;margin-bottom:8px">${esc(r.description)}</div>`:''}
       ${threadHtml}
       ${answersHtml}
       <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"/>
@@ -4671,14 +4683,14 @@ function exportReportPDF() {
           </div>`).join('')}
       </div>`
     : '';
-  const html = pdfHeader(`Rapport — ${r.title}`, `Type: ${r.report_type} | Statut: ${t('status_'+r.status)||r.status}`) + `
+  const html = pdfHeader(`Rapport — ${esc(r.title)}`, `Type: ${esc(r.report_type)} | Statut: ${t('status_'+r.status)||r.status}`) + `
     <div class="stats-row">
       <div class="stat-box"><div class="stat-val" style="font-size:1rem">${r.report_type}</div><div class="stat-lbl">Type de rapport</div></div>
       <div class="stat-box ${r.status==='approved'?'':'orange'}"><div class="stat-val" style="font-size:1rem">${t('status_'+r.status)||r.status}</div><div class="stat-lbl">Statut</div></div>
       <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</div><div class="stat-lbl">Date soumission</div></div>
       <div class="stat-box blue"><div class="stat-val" style="font-size:.9rem">${r.latitude?r.latitude.toFixed(4)+', '+r.longitude.toFixed(4):'—'}</div><div class="stat-lbl">Coordonnées GPS</div></div>
     </div>
-    ${r.description?`<div class="pdf-section"><div class="pdf-section-title">Description</div><p style="font-size:.88rem;line-height:1.6">${r.description}</p></div>`:''}
+    ${r.description?`<div class="pdf-section"><div class="pdf-section-title">Description</div><p style="font-size:.88rem;line-height:1.6">${esc(r.description)}</p></div>`:''}
     ${answersHtml}
     ${pdfFooter()}`;
   openPDF(html);
@@ -5031,7 +5043,7 @@ async function loadBranchDashboard() {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Aucun rapport soumis pour l'instant</td></tr>`;
       } else {
         tbody.innerHTML = recent.map(r => `<tr>
-          <td><strong>${r.title}</strong></td>
+          <td><strong>${esc(r.title)}</strong></td>
           <td style="font-size:.78rem">${r.report_type}</td>
           <td style="font-size:.78rem">${r.created_at?new Date(r.created_at).toLocaleDateString('fr-CI'):'—'}</td>
           <td><span class="badge-status badge-${r.status}">${t('status_'+r.status)||r.status}</span></td>

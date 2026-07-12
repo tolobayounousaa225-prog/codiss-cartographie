@@ -722,6 +722,20 @@ async def create_branch(data: dict, request: Request, db: AsyncSession = Depends
 async def update_branch(bid: str, data: dict, db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     b = await db.get(Branch, bid)
     if not b: raise HTTPException(404)
+    if "latitude" in data and data["latitude"] is not None:
+        try:
+            lat = float(data["latitude"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Latitude invalide")
+        if not (-90 <= lat <= 90):
+            raise HTTPException(400, "Latitude hors limites (doit être entre -90 et 90)")
+    if "longitude" in data and data["longitude"] is not None:
+        try:
+            lon = float(data["longitude"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Longitude invalide")
+        if not (-180 <= lon <= 180):
+            raise HTTPException(400, "Longitude hors limites (doit être entre -180 et 180)")
     for k, v in data.items():
         if hasattr(b, k) and v is not None: setattr(b, k, v)
     await db.commit()
@@ -815,6 +829,11 @@ async def submit_report(data: dict, db: AsyncSession = Depends(get_db), u: User 
     branch = await db.get(Branch, row.branch_id)
     raw_lat = data.get("latitude")
     raw_lng = data.get("longitude")
+    # Ignorer une coordonnée hors limites valides (capteur GPS défaillant) plutôt que la stocker telle quelle
+    if raw_lat is not None and not (-90 <= raw_lat <= 90):
+        raw_lat = None
+    if raw_lng is not None and not (-180 <= raw_lng <= 180):
+        raw_lng = None
     # Traiter explicitement 0.0 comme valeur valide (pas falsy)
     lat = raw_lat if raw_lat is not None else (branch.latitude if branch else None)
     lng = raw_lng if raw_lng is not None else (branch.longitude if branch else None)
@@ -1582,11 +1601,19 @@ async def declencher_sauvegarde_auto(current: User = Depends(superadmin_only), d
 def _csv_response(headers: list, rows: list, filename: str):
     """Construit une réponse CSV (UTF-8 avec BOM pour Excel)."""
     import io as _io, csv as _csv
+
+    def _safe(cell):
+        s = "" if cell is None else str(cell)
+        # Neutraliser une éventuelle formule Excel/LibreOffice (protection contre l'injection CSV)
+        if s[:1] in ("=", "+", "-", "@"):
+            return "'" + s
+        return s
+
     buf = _io.StringIO()
     writer = _csv.writer(buf, delimiter=";")
     writer.writerow(headers)
     for row in rows:
-        writer.writerow(row)
+        writer.writerow([_safe(c) for c in row])
     content = "\ufeff" + buf.getvalue()
     return Response(
         content=content,
@@ -2089,21 +2116,42 @@ async def forgot_password(data: dict, db: AsyncSession = Depends(get_db)):
     return {"ok": True, "full_name": u.full_name, "temp_password": temp,
             "message": "Mot de passe temporaire généré. Connectez-vous puis changez-le immédiatement."}
 
+_find_by_name_attempts = {}  # ip -> [timestamps des tentatives récentes]
+
+def _rate_limited(ip: str, max_par_minute: int = 5) -> bool:
+    """Limitation de fréquence simple en mémoire (par IP). Suffisant pour une instance unique."""
+    now = datetime.utcnow()
+    fenetre = now - timedelta(minutes=1)
+    tentatives = [t for t in _find_by_name_attempts.get(ip, []) if t > fenetre]
+    tentatives.append(now)
+    _find_by_name_attempts[ip] = tentatives
+    return len(tentatives) > max_par_minute
+
+
 @app.post("/api/auth/find-by-name")
-async def find_by_name(data: dict, db: AsyncSession = Depends(get_db)):
-    """Retrouve un email à partir d'un nom complet (partiel)."""
+async def find_by_name(data: dict, request: Request, db: AsyncSession = Depends(get_db)):
+    """Retrouve son propre compte à partir de son nom complet (aide en cas d'email oublié).
+    Correspondance stricte (nom quasi-exact) et résultat unique, pour limiter le risque
+    d'énumération des utilisateurs par un tiers."""
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    if _rate_limited(ip):
+        raise HTTPException(429, "Trop de tentatives. Réessayez dans une minute.")
+
     name = (data.get("name") or "").strip()
-    if len(name) < 3:
-        raise HTTPException(400, "Entrez au moins 3 caractères")
+    if len(name) < 5:
+        raise HTTPException(400, "Entrez votre nom complet (au moins 5 caractères)")
     r = await db.execute(
-        select(User).where(User.full_name.ilike(f"%{name}%")).limit(5)
+        select(User).where(func.lower(User.full_name) == name.lower())
     )
     users = r.scalars().all()
-    if not users:
-        raise HTTPException(404, "Aucun compte trouvé pour ce nom.")
+    if len(users) != 1:
+        # Message volontairement identique, qu'il y ait 0 ou plusieurs résultats
+        # (évite de révéler l'existence exacte d'un homonyme).
+        raise HTTPException(404, "Aucun compte trouvé pour ce nom exact. Vérifiez l'orthographe ou contactez un administrateur.")
     def mask_email(email):
         parts = email.split("@")
         local = parts[0]
         shown = local[:2] + "*" * max(2, len(local)-4) + local[-2:] if len(local) > 4 else local[:1] + "***"
         return shown + "@" + parts[1]
-    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)} for u in users]
+    u = users[0]
+    return [{"full_name": u.full_name, "email_masked": mask_email(u.email)}]
