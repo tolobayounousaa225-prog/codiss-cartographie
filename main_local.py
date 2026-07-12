@@ -1197,6 +1197,87 @@ async def admin_stats(db: AsyncSession = Depends(get_db), _=Depends(admin_only))
         "reports_by_month": {"labels": months_labels, "data": months_data},
     }
 
+
+@app.get("/api/admin/alertes")
+async def admin_alertes(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Alertes intelligentes pour le tableau de bord admin : branches en attente depuis
+    longtemps, rapports non traités, régions sans activité récente, branches sans secrétaire."""
+    aujourdhui = datetime.utcnow()
+    alertes = []
+
+    # 1. Branches en attente de vérification depuis plus de 15 jours
+    seuil_attente = aujourdhui - timedelta(days=15)
+    branches_attente = (await db.execute(
+        select(Branch).where(Branch.status == "pending", Branch.created_at <= seuil_attente)
+        .order_by(Branch.created_at)
+    )).scalars().all()
+    if branches_attente:
+        noms = ", ".join(b.name for b in branches_attente[:5])
+        suffixe = f" et {len(branches_attente) - 5} autre(s)" if len(branches_attente) > 5 else ""
+        jours_max = (aujourdhui - min(b.created_at for b in branches_attente)).days
+        alertes.append({
+            "type": "branches_attente", "niveau": "warning" if jours_max < 30 else "danger",
+            "titre": f"{len(branches_attente)} branche(s) en attente depuis plus de 15 jours",
+            "detail": noms + suffixe,
+        })
+
+    # 2. Rapports soumis non traités depuis plus de 7 jours
+    seuil_rapport = aujourdhui - timedelta(days=7)
+    rapports_attente = (await db.execute(
+        select(PresenceReport).where(PresenceReport.status == "submitted", PresenceReport.created_at <= seuil_rapport)
+        .order_by(PresenceReport.created_at)
+    )).scalars().all()
+    if rapports_attente:
+        alertes.append({
+            "type": "rapports_attente", "niveau": "danger",
+            "titre": f"{len(rapports_attente)} rapport(s) en attente de revue depuis plus de 7 jours",
+            "detail": ", ".join(r.title for r in rapports_attente[:5]),
+        })
+
+    # 3. Branches actives sans secrétaire assigné
+    branches_actives = (await db.execute(select(Branch).where(Branch.status == "active"))).scalars().all()
+    branch_ids_avec_secretaire = set((await db.execute(
+        select(BranchUser.branch_id).where(BranchUser.role == "secretary")
+    )).scalars().all())
+    branches_sans_secretaire = [b for b in branches_actives if b.id not in branch_ids_avec_secretaire]
+    if branches_sans_secretaire:
+        noms = ", ".join(b.name for b in branches_sans_secretaire[:5])
+        suffixe = f" et {len(branches_sans_secretaire) - 5} autre(s)" if len(branches_sans_secretaire) > 5 else ""
+        alertes.append({
+            "type": "sans_secretaire", "niveau": "warning",
+            "titre": f"{len(branches_sans_secretaire)} branche(s) active(s) sans secrétaire assigné",
+            "detail": noms + suffixe,
+        })
+
+    # 4. Régions sans aucun rapport depuis 60 jours (parmi celles ayant au moins une branche)
+    seuil_region = aujourdhui - timedelta(days=60)
+    regions = (await db.execute(select(Region))).scalars().all()
+    branches_par_region = {}
+    for b in (await db.execute(select(Branch))).scalars().all():
+        if b.region_id:
+            branches_par_region.setdefault(b.region_id, []).append(b.id)
+    rapports_recents = (await db.execute(
+        select(PresenceReport.branch_id).where(PresenceReport.created_at >= seuil_region)
+    )).scalars().all()
+    branches_actives_recemment = set(rapports_recents)
+    regions_silencieuses = []
+    for r in regions:
+        branch_ids = branches_par_region.get(r.id, [])
+        if branch_ids and not any(bid in branches_actives_recemment for bid in branch_ids):
+            regions_silencieuses.append(r.name_fr)
+    if regions_silencieuses:
+        noms = ", ".join(regions_silencieuses[:5])
+        suffixe = f" et {len(regions_silencieuses) - 5} autre(s)" if len(regions_silencieuses) > 5 else ""
+        alertes.append({
+            "type": "regions_silencieuses", "niveau": "info",
+            "titre": f"{len(regions_silencieuses)} région(s) sans aucun rapport depuis 60 jours",
+            "detail": noms + suffixe,
+        })
+
+    ordre = {"danger": 0, "warning": 1, "info": 2}
+    alertes.sort(key=lambda a: ordre.get(a["niveau"], 3))
+    return {"nombre": len(alertes), "alertes": alertes}
+
 @app.get("/api/admin/department-coverage")
 async def department_coverage(db: AsyncSession = Depends(get_db), _=Depends(current_user)):
     """Taux de couverture des départements par les Secrétaires actifs."""

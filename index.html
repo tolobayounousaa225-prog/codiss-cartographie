@@ -621,6 +621,28 @@ body.dark-mode tr:hover td{background:rgba(255,255,255,.025);}
 .pending-alert .text{font-size:.84rem;font-weight:600;color:var(--text);}
 .pending-alert .sub{font-size:.76rem;color:var(--text3);margin-top:2px;}
 
+/* ALERTES INTELLIGENTES */
+.smart-alerts-wrap{display:flex;flex-direction:column;gap:9px;}
+.smart-alert{
+  display:flex;align-items:flex-start;gap:11px;padding:12px 16px;border-radius:10px;
+  font-size:.83rem;border:1px solid;cursor:pointer;transition:.15s;
+}
+.smart-alert:hover{transform:translateY(-1px);}
+.smart-alert .sa-ico{font-size:1.05rem;line-height:1.2;flex-shrink:0;}
+.smart-alert .sa-txt strong{display:block;margin-bottom:1px;color:var(--text);}
+.smart-alert .sa-txt span{color:var(--text2);font-size:.78rem;}
+.smart-alert.danger{background:rgba(220,38,38,.06);border-color:rgba(220,38,38,.25);}
+.smart-alert.warning{background:rgba(217,119,6,.06);border-color:rgba(217,119,6,.25);}
+.smart-alert.info{background:rgba(29,78,216,.06);border-color:rgba(29,78,216,.2);}
+body.dark-mode .smart-alert.danger{background:rgba(255,23,68,.08);border-color:rgba(255,23,68,.25);}
+body.dark-mode .smart-alert.warning{background:rgba(255,145,0,.08);border-color:rgba(255,145,0,.25);}
+body.dark-mode .smart-alert.info{background:rgba(68,138,255,.08);border-color:rgba(68,138,255,.22);}
+.smart-alert-ok{
+  padding:12px 16px;border-radius:10px;font-size:.83rem;
+  background:rgba(15,118,110,.06);border:1px solid rgba(15,118,110,.22);color:var(--green);
+}
+body.dark-mode .smart-alert-ok{background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.25);}
+
 /* FORM REPORT */
 .report-form-wrap{max-width:820px;}
 .section-divider{border:none;border-top:1px solid var(--border);margin:22px 0;}
@@ -1284,6 +1306,9 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
            SECTION : TABLEAU DE BORD (Admin)
       ══════════════════════════════════════════ -->
       <div id="section-dashboard" class="section-hidden">
+
+        <!-- Alertes intelligentes -->
+        <div id="smart-alerts-box" style="margin-bottom:16px"></div>
 
         <!-- Alertes en attente -->
         <div id="pending-alerts-row" style="display:none;gap:14px;margin-bottom:18px;flex-wrap:wrap;"></div>
@@ -5047,8 +5072,35 @@ loadDashboard = async function() {
   if (actPanel) { actPanel.style.display = 'block'; loadSecretaireActivity(); }
   const rankPanel = document.getElementById('regions-ranking-panel');
   if (rankPanel) { rankPanel.style.display = 'block'; loadRegionsRanking(); }
+  loadSmartAlerts();
   return _origLoadDashboard();
 };
+
+// ══════════════════════════════════════════════════════════════
+// ALERTES INTELLIGENTES
+// ══════════════════════════════════════════════════════════════
+async function loadSmartAlerts() {
+  const box = document.getElementById('smart-alerts-box');
+  if (!box) return;
+  try {
+    const d = await api('GET', '/admin/alertes');
+    if (!d.alertes.length) {
+      box.innerHTML = `<div class="smart-alert-ok">✅ Tout va bien : aucun point d'attention pour le moment.</div>`;
+      return;
+    }
+    const ico = { danger: '🔴', warning: '🟠', info: '🔵' };
+    const cible = { branches_attente: 'branches', rapports_attente: 'reports',
+                    sans_secretaire: 'branches', regions_silencieuses: 'regions' };
+    box.innerHTML = `<div class="smart-alerts-wrap">` + d.alertes.map(a => `
+      <div class="smart-alert ${a.niveau}" onclick="showSection('${cible[a.type] || 'dashboard'}')">
+        <div class="sa-ico">${ico[a.niveau] || '•'}</div>
+        <div class="sa-txt"><strong>${a.titre}</strong><span>${a.detail}</span></div>
+      </div>`).join('') + `</div>`;
+  } catch (e) {
+    box.innerHTML = '';
+  }
+}
+
 
 // ══════════════════════════════════════════════════════════════
 // CLASSEMENT DES RÉGIONS
