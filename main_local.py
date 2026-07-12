@@ -135,6 +135,11 @@ def admin_only(u: User = Depends(current_user)):
         raise HTTPException(403, "Accès admin requis")
     return u
 
+def superadmin_only(u: User = Depends(current_user)):
+    if u.role != "superadmin":
+        raise HTTPException(403, "Réservé au super administrateur")
+    return u
+
 # ── Démarrage + auto-seed ─────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1120,6 +1125,147 @@ async def regions_ranking(db: AsyncSession = Depends(get_db), _=Depends(admin_on
     top5 = ranking[:5]
     bottom5 = sorted(ranking, key=lambda x: x["total_branches"])[:5]
     return {"ranking": ranking, "top5": top5, "bottom5": bottom5}
+
+
+# ══════════════════════════════════════════════════════
+# SAUVEGARDE & RESTAURATION COMPLÈTES
+# ══════════════════════════════════════════════════════
+def _serial(v):
+    """Sérialise les types non-JSON natifs (dates, bytes) pour l'export."""
+    if isinstance(v, (datetime, _date)):
+        return v.isoformat()
+    if isinstance(v, bytes):
+        return base64.b64encode(v).decode("ascii")
+    return v
+
+
+def _dump_all(model, exclude=()):
+    """Retourne toutes les lignes d'un modèle sous forme de dicts sérialisables."""
+    async def _run(db):
+        rows = (await db.execute(select(model))).scalars().all()
+        out = []
+        for obj in rows:
+            d = {}
+            for col in model.__table__.columns:
+                if col.name in exclude:
+                    continue
+                d[col.name] = _serial(getattr(obj, col.name))
+            out.append(d)
+        return out
+    return _run
+
+
+@app.get("/api/admin/sauvegarde")
+async def sauvegarde_complete(db: AsyncSession = Depends(get_db), current: User = Depends(superadmin_only)):
+    """Export JSON complet de toute la base CODISS (y compris les photos de rapports en base64),
+    pour archivage local avant une migration ou en sauvegarde régulière."""
+    data = {
+        "meta": {
+            "application": "CODISS Cartographie",
+            "genere_le": datetime.utcnow().isoformat(),
+            "genere_par": current.full_name,
+            "version": 1,
+        },
+        "regions": await _dump_all(Region)(db),
+        "departments": await _dump_all(Department)(db),
+        "users": await _dump_all(User)(db),
+        "branches": await _dump_all(Branch)(db),
+        "branch_users": await _dump_all(BranchUser)(db),
+        "presence_reports": await _dump_all(PresenceReport)(db),
+        "report_form_answers": await _dump_all(ReportFormAnswer)(db),
+        "report_photos": await _dump_all(ReportPhoto)(db),  # contenu binaire inclus en base64
+        "notifications": await _dump_all(Notification)(db),
+    }
+    contenu = _json.dumps(data, ensure_ascii=False, indent=2)
+    nom = f"sauvegarde_codiss_{_date.today().strftime('%Y%m%d_%H%M')}.json"
+    return Response(
+        content=contenu,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )
+
+
+def _deserial_dates(d: dict, date_fields=(), datetime_fields=()):
+    """Reconvertit les chaînes ISO en objets date/datetime pour la restauration."""
+    out = dict(d)
+    for f in date_fields:
+        if out.get(f):
+            out[f] = _date.fromisoformat(out[f])
+    for f in datetime_fields:
+        if out.get(f):
+            out[f] = datetime.fromisoformat(out[f])
+    return out
+
+
+@app.post("/api/admin/restaurer")
+async def restaurer_complete(
+    payload: dict,
+    mode: str = "fusion",
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(superadmin_only),
+):
+    """Restaure une sauvegarde JSON complète.
+    mode='fusion' (défaut) : n'ajoute que les enregistrements dont l'id n'existe pas encore (ne touche jamais l'existant).
+    mode='remplacer' : vide chaque table avant de réinjecter (destructif, à utiliser uniquement pour une migration à froid)."""
+    if mode not in ("fusion", "remplacer"):
+        raise HTTPException(400, "mode invalide (fusion ou remplacer)")
+
+    compteurs = {}
+
+    async def _restore_table(model, rows, date_fields=(), datetime_fields=(), skip_existing_check=False, unique_field=None):
+        if not rows:
+            compteurs[model.__tablename__] = 0
+            return
+        if mode == "remplacer":
+            await db.execute(model.__table__.delete())
+            await db.flush()
+        ajoutes = 0
+        for row in rows:
+            row = _deserial_dates(row, date_fields, datetime_fields)
+            # Reconvertir les champs binaires base64 -> bytes
+            for col in model.__table__.columns:
+                if col.type.python_type is bytes and isinstance(row.get(col.name), str):
+                    row[col.name] = base64.b64decode(row[col.name])
+            if mode == "fusion" and not skip_existing_check:
+                if unique_field:
+                    existing = (await db.execute(
+                        select(model).where(getattr(model, unique_field) == row.get(unique_field))
+                    )).scalar_one_or_none()
+                else:
+                    pk_col = list(model.__table__.primary_key.columns)[0].name
+                    existing = await db.get(model, row.get(pk_col))
+                if existing:
+                    continue
+            db.add(model(**row))
+            ajoutes += 1
+        await db.flush()
+        compteurs[model.__tablename__] = ajoutes
+
+    try:
+        await _restore_table(Region, payload.get("regions", []), datetime_fields=("created_at",), unique_field="code")
+        await _restore_table(Department, payload.get("departments", []), datetime_fields=("created_at",), unique_field="code")
+        await _restore_table(User, payload.get("users", []),
+                              datetime_fields=("last_login", "created_at", "updated_at", "setup_token_expires"),
+                              unique_field="email")
+        await db.flush()
+        await _restore_table(Branch, payload.get("branches", []),
+                              date_fields=("founded_date",), datetime_fields=("verified_at", "created_at", "updated_at"),
+                              unique_field="code")
+        await _restore_table(BranchUser, payload.get("branch_users", []), datetime_fields=("created_at",),
+                              skip_existing_check=True)
+        await _restore_table(PresenceReport, payload.get("presence_reports", []),
+                              date_fields=("period_start", "period_end"),
+                              datetime_fields=("reviewed_at", "viewed_at", "created_at", "updated_at"))
+        await _restore_table(ReportFormAnswer, payload.get("report_form_answers", []), datetime_fields=("created_at",),
+                              skip_existing_check=True)
+        await _restore_table(ReportPhoto, payload.get("report_photos", []), datetime_fields=("created_at",))
+        await _restore_table(Notification, payload.get("notifications", []), datetime_fields=("created_at",))
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(400, f"Échec de la restauration : {type(e).__name__}: {e}")
+
+    return {"ok": True, "mode": mode, "compteurs": compteurs}
 
 
 def _csv_response(headers: list, rows: list, filename: str):

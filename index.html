@@ -1092,6 +1092,10 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
         <span class="icon">🗺️</span>
         <span data-fr="Régions" data-ar="المناطق">Régions</span>
       </div>
+      <div class="nav-item" onclick="showSection('system')" id="nav-system" style="display:none">
+        <span class="icon">🛡️</span>
+        <span data-fr="Système" data-ar="النظام">Système</span>
+      </div>
     </div>
 
     <!-- Navigation Viewer -->
@@ -1699,6 +1703,53 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
       </div>
 
       <!-- ══════════════════════════════════════════
+           SECTION : SYSTÈME (sauvegarde & restauration)
+      ══════════════════════════════════════════ -->
+      <div id="section-system" class="section-hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">🛡️ Système — Sauvegarde &amp; restauration</div>
+              <div class="panel-subtitle">Export/import complet de la base CODISS (réservé au super administrateur)</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg4);border-radius:10px;padding:16px;margin-bottom:20px;font-size:.85rem;color:var(--text2)">
+            💡 La sauvegarde télécharge un fichier JSON contenant toutes les données : régions, départements,
+            utilisateurs, branches, rapports (avec leurs photos) et notifications. Conservez-le en lieu sûr —
+            c'est votre filet de sécurité en cas de problème, et le moyen de migrer vos données vers un nouvel hébergement.
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <div style="border:1px solid var(--border);border-radius:10px;padding:20px;">
+              <div style="font-weight:700;margin-bottom:8px;color:var(--green)">📥 Sauvegarder</div>
+              <div style="font-size:.82rem;color:var(--text2);margin-bottom:14px">
+                Télécharge un export complet de toutes les données actuelles au format JSON.
+              </div>
+              <button class="btn btn-primary" style="max-width:220px" onclick="telechargerSauvegarde()">📥 Télécharger la sauvegarde</button>
+              <div id="backup-status" style="font-size:.78rem;color:var(--text3);margin-top:8px"></div>
+            </div>
+
+            <div style="border:1px solid var(--border);border-radius:10px;padding:20px;">
+              <div style="font-weight:700;margin-bottom:8px;color:var(--orange)">📤 Restaurer</div>
+              <div style="font-size:.82rem;color:var(--text2);margin-bottom:14px">
+                Réimporte un fichier de sauvegarde JSON précédemment téléchargé.
+              </div>
+              <input type="file" id="restore-file-input" accept="application/json" style="font-size:.82rem;margin-bottom:10px;width:100%">
+              <div style="margin-bottom:10px">
+                <label style="font-size:.82rem;display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="checkbox" id="restore-mode-remplacer">
+                  <span>Mode « remplacer » (vide chaque table avant de réimporter — recommandé uniquement pour une migration vers une base neuve)</span>
+                </label>
+              </div>
+              <button class="btn btn-secondary" style="max-width:220px;border-color:var(--orange);color:var(--orange)" onclick="restaurerSauvegarde()">📤 Restaurer la sauvegarde</button>
+              <div id="restore-status" style="font-size:.78rem;color:var(--text3);margin-top:8px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
            SECTION : PROFIL
       ══════════════════════════════════════════ -->
       <div id="section-profile" class="section-hidden">
@@ -2164,6 +2215,7 @@ function initApp() {
   document.getElementById('nav-branch-section').style.display  = u.role === 'branch'  ? 'block' : 'none';
   document.getElementById('nav-admin-section').style.display   = ['superadmin','admin'].includes(u.role) ? 'block' : 'none';
   document.getElementById('nav-viewer-section').style.display  = u.role === 'viewer'  ? 'block' : 'none';
+  document.getElementById('nav-system').style.display           = u.role === 'superadmin' ? 'flex' : 'none';
 
   // Page d'atterrissage selon rôle
   if (u.role === 'branch') {
@@ -2203,14 +2255,14 @@ function initApp() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
 const ALL_SECTIONS = ['new-report','my-reports','my-branch','dashboard','map',
-                      'branches','reports','users','regions','profile'];
+                      'branches','reports','users','regions','profile','system'];
 const PAGE_TITLES = {
   fr: { 'new-report':'Nouveau rapport', 'my-reports':'Mes rapports', 'my-branch':'Ma branche',
         dashboard:'Tableau de bord', map:'Carte nationale', branches:'Branches',
-        reports:'Rapports', users:'Utilisateurs', regions:'Régions', profile:'Mon profil' },
+        reports:'Rapports', users:'Utilisateurs', regions:'Régions', profile:'Mon profil', system:'Système' },
   en: { 'new-report':'New Report', 'my-reports':'My Reports', 'my-branch':'My Branch',
         dashboard:'Dashboard', map:'National Map', branches:'Branches',
-        reports:'Reports', users:'Users', regions:'Regions', profile:'My Profile' }
+        reports:'Reports', users:'Users', regions:'Regions', profile:'My Profile', system:'System' }
 };
 
 function showSection(name) {
@@ -5004,6 +5056,68 @@ async function exportCSV(type) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   } catch (e) {
     showToast(e.message || 'Erreur lors de l\'export', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SYSTÈME : SAUVEGARDE & RESTAURATION COMPLÈTES
+// ═══════════════════════════════════════════════════════
+async function telechargerSauvegarde() {
+  const status = document.getElementById('backup-status');
+  status.textContent = 'Génération de la sauvegarde…';
+  try {
+    const res = await fetch(API + '/admin/sauvegarde', { headers: { 'Authorization': 'Bearer ' + STATE.token } });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || ('Erreur HTTP ' + res.status));
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `sauvegarde_codiss_${new Date().toISOString().slice(0,10)}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    status.textContent = '✅ Sauvegarde téléchargée : ' + filename;
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+  }
+}
+
+async function restaurerSauvegarde() {
+  const fileInput = document.getElementById('restore-file-input');
+  const status = document.getElementById('restore-status');
+  const modeRemplacer = document.getElementById('restore-mode-remplacer').checked;
+  const file = fileInput.files[0];
+  if (!file) { status.textContent = 'Choisissez un fichier de sauvegarde (.json).'; return; }
+
+  const mode = modeRemplacer ? 'remplacer' : 'fusion';
+  const confirmMsg = modeRemplacer
+    ? '⚠️ Mode REMPLACER : toutes les données actuelles seront supprimées et remplacées par celles du fichier. Cette action est irréversible. Continuer ?'
+    : 'Fusionner les données du fichier avec les données actuelles (rien de ce qui existe déjà ne sera modifié) ?';
+  if (!confirm(confirmMsg)) return;
+
+  status.textContent = 'Restauration en cours…';
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const res = await fetch(`${API}/admin/restaurer?mode=${mode}`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + STATE.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || ('Erreur HTTP ' + res.status));
+    const resume = Object.entries(data.compteurs).map(([k,v]) => `${k}: +${v}`).join(' · ');
+    status.innerHTML = `✅ Restauration terminée (mode ${data.mode})<br><span style="font-size:.72rem">${resume}</span>`;
+    showToast('Restauration terminée avec succès', 'success');
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
   }
 }
 
