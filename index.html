@@ -5246,9 +5246,12 @@ async function loadSmartAlerts() {
     }
     const ico = { danger: '🔴', warning: '🟠', info: '🔵' };
     const cible = { branches_attente: 'branches', rapports_attente: 'reports',
-                    sans_secretaire: 'branches', regions_silencieuses: 'regions' };
+                    sans_secretaire: 'branches', regions_silencieuses: 'regions',
+                    ecart_branche_sans_secretaire: 'dashboard', ecart_secretaire_sans_branche: 'dashboard' };
+    const scrollCible = { ecart_branche_sans_secretaire: 'dept-coverage-branches-panel',
+                           ecart_secretaire_sans_branche: 'dept-coverage-panel' };
     box.innerHTML = `<div class="smart-alerts-wrap">` + d.alertes.map(a => `
-      <div class="smart-alert ${a.niveau}" onclick="showSection('${cible[a.type] || 'dashboard'}')">
+      <div class="smart-alert ${a.niveau}" onclick="handleAlertClick('${a.type}', '${cible[a.type] || 'dashboard'}', '${scrollCible[a.type] || ''}')">
         <div class="sa-ico">${ico[a.niveau] || '•'}</div>
         <div class="sa-txt"><strong>${a.titre}</strong><span>${a.detail}</span></div>
       </div>`).join('') + `</div>`;
@@ -5257,6 +5260,17 @@ async function loadSmartAlerts() {
   }
 }
 
+// Gère le clic sur une alerte intelligente : navigue vers la bonne section, puis, si la
+// destination est le tableau de bord lui-même, fait défiler jusqu'au panneau concerné.
+function handleAlertClick(type, section, scrollTargetId) {
+  showSection(section);
+  if (scrollTargetId) {
+    setTimeout(() => {
+      const el = document.getElementById(scrollTargetId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 // CLASSEMENT DES RÉGIONS

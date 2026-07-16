@@ -1326,6 +1326,35 @@ async def admin_alertes(db: AsyncSession = Depends(get_db), _=Depends(admin_only
             "detail": noms + suffixe,
         })
 
+    # 5. Écart de couverture départementale : un département couvert d'un côté (secrétariat actif
+    # ou secrétaire actif) mais pas de l'autre, révèle un décalage à corriger (secrétariat sans
+    # animateur, ou responsable désigné sans secrétariat formel).
+    departments = (await db.execute(select(Department))).scalars().all()
+    depts_avec_branche = set((await db.execute(
+        select(Branch.department_id).where(Branch.status == "active", Branch.department_id != None).distinct()
+    )).scalars().all())
+    depts_avec_secretaire = set((await db.execute(
+        select(User.department_id).where(User.role == "branch", User.is_active == True, User.department_id != None).distinct()
+    )).scalars().all())
+    sans_secretaire_mais_branche = [d for d in departments if d.id in depts_avec_branche and d.id not in depts_avec_secretaire]
+    sans_branche_mais_secretaire = [d for d in departments if d.id in depts_avec_secretaire and d.id not in depts_avec_branche]
+    if sans_secretaire_mais_branche:
+        noms = ", ".join(d.name_fr for d in sans_secretaire_mais_branche[:5])
+        suffixe = f" et {len(sans_secretaire_mais_branche) - 5} autre(s)" if len(sans_secretaire_mais_branche) > 5 else ""
+        alertes.append({
+            "type": "ecart_branche_sans_secretaire", "niveau": "warning",
+            "titre": f"{len(sans_secretaire_mais_branche)} département(s) avec secrétariat mais sans secrétaire actif",
+            "detail": noms + suffixe,
+        })
+    if sans_branche_mais_secretaire:
+        noms = ", ".join(d.name_fr for d in sans_branche_mais_secretaire[:5])
+        suffixe = f" et {len(sans_branche_mais_secretaire) - 5} autre(s)" if len(sans_branche_mais_secretaire) > 5 else ""
+        alertes.append({
+            "type": "ecart_secretaire_sans_branche", "niveau": "info",
+            "titre": f"{len(sans_branche_mais_secretaire)} département(s) avec secrétaire actif mais sans secrétariat actif",
+            "detail": noms + suffixe,
+        })
+
     ordre = {"danger": 0, "warning": 1, "info": 2}
     alertes.sort(key=lambda a: ordre.get(a["niveau"], 3))
     return {"nombre": len(alertes), "alertes": alertes}
