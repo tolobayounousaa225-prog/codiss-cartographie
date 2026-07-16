@@ -1498,6 +1498,33 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
             <div style="text-align:center;color:var(--text3);padding:20px">Chargement…</div>
           </div>
         </div>
+
+        <div class="panel" id="dept-coverage-branches-panel" style="margin-top:16px">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">🏛️ Couverture des Départements par Secrétariat</div>
+              <div class="panel-subtitle">Départements ayant une branche active présente</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div id="dept-cov-branches-global" style="font-size:1.4rem;font-weight:700;color:var(--green)">—</div>
+              <div style="font-size:.78rem;color:var(--text3)">global</div>
+            </div>
+          </div>
+          <!-- Barre globale -->
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text2);margin-bottom:4px">
+              <span id="dept-cov-branches-label">Chargement…</span>
+              <span id="dept-cov-branches-pct" style="font-weight:600"></span>
+            </div>
+            <div class="coverage-bar" style="height:10px">
+              <div id="dept-cov-branches-bar" class="coverage-fill" style="width:0%;background:var(--green2)"></div>
+            </div>
+          </div>
+          <!-- Détail par région (accordéon) -->
+          <div id="dept-coverage-branches-list" style="display:flex;flex-direction:column;gap:8px">
+            <div style="text-align:center;color:var(--text3);padding:20px">Chargement…</div>
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════════════
@@ -2445,7 +2472,7 @@ async function loadDashboard() {
     }
 
     // Couverture départements (admin seulement)
-    if (STATE.me && ['admin','superadmin'].includes(STATE.me.role)) {
+    if (STATE.user && ['admin','superadmin'].includes(STATE.user.role)) {
       try {
         const deptCov = await api('GET', '/admin/department-coverage');
         renderDeptCoverage(deptCov);
@@ -2453,13 +2480,22 @@ async function loadDashboard() {
         const el = document.getElementById('dept-coverage-list');
         if (el) el.innerHTML = '<p style="color:var(--text3);text-align:center">Données non disponibles</p>';
       }
+      try {
+        const deptCovBranches = await api('GET', '/admin/department-coverage-branches');
+        renderDeptCoverageBranches(deptCovBranches);
+      } catch(e) {
+        const el = document.getElementById('dept-coverage-branches-list');
+        if (el) el.innerHTML = '<p style="color:var(--text3);text-align:center">Données non disponibles</p>';
+      }
     } else {
       const p = document.getElementById('dept-coverage-panel');
       if (p) p.style.display = 'none';
+      const p2 = document.getElementById('dept-coverage-branches-panel');
+      if (p2) p2.style.display = 'none';
     }
 
     // ── Graphiques (admin uniquement) ──────────────────────────────
-    if (STATE.me && ['admin','superadmin'].includes(STATE.me.role)) {
+    if (STATE.user && ['admin','superadmin'].includes(STATE.user.role)) {
       const as = await api('GET', '/admin/stats');
       if (as) {
         document.getElementById('st-reports').textContent = as.total_reports || '0';
@@ -2541,14 +2577,12 @@ function renderReportsChart(as) {
 
 function renderDeptCoverage(data) {
   if (!data) return;
-  const pct     = data.coverage_pct || 0;
   const covered = data.covered_departments || 0;
-  const total   = data.total_departments   || 0;
   const uncov   = data.uncovered_departments || 0;
 
-  // Stat cards
+  // Stat cards (spécifiques à la vue "secrétaires", conservées telles quelles)
   const stDept = document.getElementById('st-dept-coverage');
-  if (stDept) stDept.textContent = `${covered}/${total}`;
+  if (stDept) stDept.textContent = `${covered}/${data.total_departments || 0}`;
   const stUncov = document.getElementById('st-dept-uncovered');
   if (stUncov) {
     stUncov.textContent = uncov;
@@ -2556,19 +2590,39 @@ function renderDeptCoverage(data) {
     if (card) card.className = `stat-card ${uncov === 0 ? 'green' : uncov < 10 ? 'orange' : 'red'}`;
   }
 
-  // Global bar in dept panel
+  renderDeptCoverageGeneric(data, {
+    bar: 'dept-cov-bar', global: 'dept-cov-global', label: 'dept-cov-label',
+    pct: 'dept-cov-pct', list: 'dept-coverage-list',
+  });
+}
+
+function renderDeptCoverageBranches(data) {
+  renderDeptCoverageGeneric(data, {
+    bar: 'dept-cov-branches-bar', global: 'dept-cov-branches-global', label: 'dept-cov-branches-label',
+    pct: 'dept-cov-branches-pct', list: 'dept-coverage-branches-list',
+  });
+}
+
+// Rendu générique du panneau de couverture départementale (barre globale + accordéon par région)
+// utilisé à la fois pour la vue "par secrétaire actif" et la vue "par secrétariat (branche) actif".
+function renderDeptCoverageGeneric(data, ids) {
+  if (!data) return;
+  const pct     = data.coverage_pct || 0;
+  const covered = data.covered_departments || 0;
+  const total   = data.total_departments   || 0;
+
   const barColor = pct >= 80 ? 'var(--green2)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
-  const barEl = document.getElementById('dept-cov-bar');
+  const barEl = document.getElementById(ids.bar);
   if (barEl) { barEl.style.width = pct + '%'; barEl.style.background = barColor; }
-  const globalEl = document.getElementById('dept-cov-global');
+  const globalEl = document.getElementById(ids.global);
   if (globalEl) { globalEl.textContent = pct + '%'; globalEl.style.color = barColor; }
-  const labelEl = document.getElementById('dept-cov-label');
+  const labelEl = document.getElementById(ids.label);
   if (labelEl) labelEl.textContent = `${covered} département${covered>1?'s':''} couvert${covered>1?'s':''} sur ${total}`;
-  const pctEl = document.getElementById('dept-cov-pct');
+  const pctEl = document.getElementById(ids.pct);
   if (pctEl) { pctEl.textContent = pct + '%'; pctEl.style.color = barColor; }
 
   // Per-region accordion
-  const listEl = document.getElementById('dept-coverage-list');
+  const listEl = document.getElementById(ids.list);
   if (!listEl || !data.by_region) return;
 
   listEl.innerHTML = data.by_region.map(r => {
@@ -3179,7 +3233,7 @@ async function loadMyReports() {
           <div class="btn-group">
             <button class="action-btn outline" onclick="showReportDetail('${r.id}')" data-fr="Voir" data-ar="عرض">Voir</button>
             ${r.status==='rejected'&&!r.branch_response?`<button class="action-btn blue" onclick="openReplyModal('${r.id}','${(r.title||'').replace(/'/g,"\\'")}','${(r.review_notes||'').replace(/'/g,"\\'").replace(/\n/g,' ')}')" >💬 Répondre</button>`:''}
-            ${STATE.me&&STATE.me.role==='superadmin'?`<button class="action-btn" style="background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.8rem;font-weight:600" onclick="viewUserPassword('${u.id}','${(u.full_name||'').replace(/'/g,String.fromCharCode(39))}')">👁 Voir mdp</button>`:''}
+            ${STATE.user&&STATE.user.role==='superadmin'?`<button class="action-btn" style="background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.8rem;font-weight:600" onclick="viewUserPassword('${u.id}','${(u.full_name||'').replace(/'/g,String.fromCharCode(39))}')">👁 Voir mdp</button>`:''}
           </div>
         </td>
       </tr>`).join('');
@@ -5130,7 +5184,7 @@ async function loadViewerDashboard() {
     setEl('st-regions',  `${stats.covered_regions}/${stats.total_regions}`);
     setEl('st-coverage', stats.coverage_pct + '%');
     // Cacher les panels admin
-    ['secretaire-activity-panel','dept-coverage-panel','charts-row','online-users-panel'].forEach(id => {
+    ['secretaire-activity-panel','dept-coverage-panel','dept-coverage-branches-panel','charts-row','online-users-panel'].forEach(id => {
       const el = document.getElementById(id); if(el) el.style.display='none';
     });
     try {

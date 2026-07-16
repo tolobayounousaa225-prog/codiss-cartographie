@@ -1365,6 +1365,43 @@ async def department_coverage(db: AsyncSession = Depends(get_db), _=Depends(curr
     }
 
 
+@app.get("/api/admin/department-coverage-branches")
+async def department_coverage_branches(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
+    """Taux de couverture des départements par la présence d'un secrétariat (branche) actif.
+    Complémentaire à /department-coverage (qui se base sur les secrétaires actifs) : un
+    département peut avoir un secrétariat sans secrétaire actif pour l'animer, ou inversement."""
+    regions     = (await db.execute(select(Region).order_by(Region.name_fr))).scalars().all()
+    departments = (await db.execute(select(Department).order_by(Department.name_fr))).scalars().all()
+    # Départements ayant au moins une branche active
+    covered_ids = set((await db.execute(
+        select(Branch.department_id)
+        .where(Branch.status == "active", Branch.department_id != None)
+        .distinct()
+    )).scalars().all())
+    total   = len(departments)
+    covered = len(covered_ids)
+    by_region = []
+    for r in regions:
+        r_depts   = [d for d in departments if d.region_id == r.id]
+        r_covered = [d for d in r_depts if d.id in covered_ids]
+        by_region.append({
+            "region_id":    r.id,
+            "region_code":  r.code,
+            "region_name":  r.name_fr,
+            "total_depts":  len(r_depts),
+            "covered_depts": len(r_covered),
+            "coverage_pct": round(len(r_covered) / len(r_depts) * 100) if r_depts else 0,
+            "departments":  [{"id": d.id, "name": d.name_fr, "covered": d.id in covered_ids} for d in r_depts],
+        })
+    return {
+        "total_departments":     total,
+        "covered_departments":   covered,
+        "uncovered_departments": total - covered,
+        "coverage_pct":          round(covered / total * 100) if total else 0,
+        "by_region":             by_region,
+    }
+
+
 @app.get("/api/admin/regions-ranking")
 async def regions_ranking(db: AsyncSession = Depends(get_db), _=Depends(admin_only)):
     """Classement des régions par nombre de branches (actives + total), du mieux couvert au moins couvert."""
