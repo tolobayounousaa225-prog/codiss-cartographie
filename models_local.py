@@ -40,6 +40,8 @@ class Department(Base):
     name_fr    = Column(String(100), nullable=False)
     name_en    = Column(String(100), nullable=False)
     region_id  = Column(Integer, ForeignKey("regions.id"))
+    latitude   = Column(Float, nullable=True)
+    longitude  = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):

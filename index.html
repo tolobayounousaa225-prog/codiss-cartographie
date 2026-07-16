@@ -1569,6 +1569,7 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
           <div class="map-mode-toggle" style="display:flex;border:1.5px solid var(--gray2);border-radius:8px;overflow:hidden;flex-shrink:0">
             <button id="map-mode-branches" class="map-mode-btn active" onclick="setMapMode('branches')">🏛 Branches</button>
             <button id="map-mode-reports" class="map-mode-btn" onclick="setMapMode('reports')">📄 Rapports</button>
+            <button id="map-mode-departments" class="map-mode-btn" onclick="setMapMode('departments')">🗺️ Départements</button>
           </div>
           <input id="map-search" type="text" placeholder="🔍 Rechercher un secrétariat…" oninput="filterMapMarkers()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--gray2);border-radius:7px;font-size:.85rem;background:var(--bg1);color:var(--text1)">
           <label class="map-filter-chip"><input type="checkbox" id="mf-active" checked onchange="filterMapMarkers()"> <span class="legend-dot" style="background:var(--green2)"></span> Actives</label>
@@ -1589,6 +1590,13 @@ body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
           <span class="legend-item"><span class="legend-dot" style="background:#00c853"></span><span>Récent (≤ 30 jours)</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:#ff9100"></span><span>À surveiller (31–90 jours)</span></span>
           <span class="legend-item"><span class="legend-dot" style="background:#78909c"></span><span>Ancien (&gt; 90 jours)</span></span>
+        </div>
+        <div class="map-legend section-hidden" id="map-legend-departments">
+          <strong style="font-size:.82rem;color:var(--text2)">Légende (couverture départementale) :</strong>
+          <span class="legend-item"><span class="legend-dot" style="background:#00c853"></span><span>Complète (secrétariat + secrétaire actifs)</span></span>
+          <span class="legend-item"><span class="legend-dot" style="background:#ff9100"></span><span>Partielle (l'un des deux seulement)</span></span>
+          <span class="legend-item"><span class="legend-dot" style="background:#78909c"></span><span>Aucune couverture</span></span>
+          <span style="font-size:.72rem;color:var(--text3);margin-left:auto">📍 Positions approximatives (centre du département)</span>
         </div>
         <div style="position:relative">
           <div id="map"></div>
@@ -5583,17 +5591,22 @@ function setMapMode(mode) {
   _mapMode = mode;
   document.getElementById('map-mode-branches').classList.toggle('active', mode === 'branches');
   document.getElementById('map-mode-reports').classList.toggle('active', mode === 'reports');
+  document.getElementById('map-mode-departments').classList.toggle('active', mode === 'departments');
   document.getElementById('map-legend-branches').classList.toggle('section-hidden', mode !== 'branches');
   document.getElementById('map-legend-reports').classList.toggle('section-hidden', mode !== 'reports');
+  document.getElementById('map-legend-departments').classList.toggle('section-hidden', mode !== 'departments');
   document.getElementById('mf-active').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
   document.getElementById('mf-pending').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
   document.getElementById('mf-other').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
   document.getElementById('mf-verified').closest('.map-filter-chip').style.display = mode === 'branches' ? 'flex' : 'none';
   if (STATE.clusterLayer) STATE.clusterLayer.clearLayers();
+  if (STATE.deptLayer && mode !== 'departments') { STATE.map.removeLayer(STATE.deptLayer); STATE.deptLayer = null; }
   if (mode === 'branches') {
     renderMapMarkers();
-  } else {
+  } else if (mode === 'reports') {
     loadReportsMapPoints();
+  } else if (mode === 'departments') {
+    loadDepartmentCoveragePoints();
   }
 }
 
@@ -5629,6 +5642,42 @@ function renderReportMarkers() {
     m.bindTooltip(`${p.title} — ${p.branch_name} (${ageTxt})`, { direction: 'top', offset: [0, -8] });
     m.on('click', () => showReportDetail(p.id));
     STATE.clusterLayer.addLayer(m);
+  });
+}
+
+function departmentCoverageColor(level) {
+  return level === 'complet' ? '#00c853' : level === 'partiel' ? '#ff9100' : '#78909c';
+}
+
+async function loadDepartmentCoveragePoints() {
+  if (!STATE.map) return;
+  try {
+    const d = await api('GET', '/map/department-coverage-points');
+    window._mapDeptData = d.points || [];
+  } catch(e) { console.error(e); window._mapDeptData = []; }
+  renderDepartmentCoverageMarkers();
+}
+
+function renderDepartmentCoverageMarkers() {
+  if (!STATE.map || _mapMode !== 'departments') return;
+  // Un choroplèthe se compare mal en grappes (clustering) : on utilise une simple couche
+  // de cercles fixes, tous visibles en permanence quel que soit le niveau de zoom.
+  if (STATE.clusterLayer) { STATE.map.removeLayer(STATE.clusterLayer); STATE.clusterLayer = null; }
+  if (!STATE.deptLayer) {
+    STATE.deptLayer = L.layerGroup().addTo(STATE.map);
+  }
+  STATE.deptLayer.clearLayers();
+  (window._mapDeptData || []).forEach(p => {
+    if (!p.latitude || !p.longitude) return;
+    const m = L.circleMarker([p.latitude, p.longitude], {
+      radius: 11, fillColor: departmentCoverageColor(p.level),
+      color: '#fff', weight: 1.5, opacity: 1, fillOpacity: .75,
+    });
+    const statutTxt = p.level === 'complet' ? '✅ Secrétariat + secrétaire actifs'
+                     : p.level === 'partiel' ? `⚠️ ${p.has_branch ? 'Secrétariat actif, sans secrétaire' : 'Secrétaire actif, sans secrétariat'}`
+                     : '⭕ Aucune couverture';
+    m.bindTooltip(`<strong>${p.name}</strong> (${p.region_name})<br>${statutTxt}`, { direction: 'top', offset: [0, -10] });
+    STATE.deptLayer.addLayer(m);
   });
 }
 

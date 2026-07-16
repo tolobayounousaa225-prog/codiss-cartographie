@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date as _date
 from typing import Optional, List
-import uuid, os, random, string, secrets, smtplib, ssl, asyncio, urllib.request, urllib.error, base64, json as _json, calendar
+import uuid, os, random, string, secrets, smtplib, ssl, asyncio, urllib.request, urllib.error, base64, json as _json, calendar, math
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -179,8 +179,20 @@ async def lifespan(app: FastAPI):
                 await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
             except Exception:
                 pass  # colonne déjà présente
+        for col, typedef in [
+            ("latitude",  "FLOAT"),
+            ("longitude", "FLOAT"),
+        ]:
+            try:
+                await conn.execute(text(f"ALTER TABLE departments ADD COLUMN {col} {typedef}"))
+            except Exception:
+                pass  # colonne déjà présente
     # 3. Auto-seed si la base est vide
     await auto_seed()
+    # 3bis. Compléter les coordonnées GPS des départements qui n'en ont pas encore
+    # (positions approximatives dispersées autour du centre de leur région, pour permettre
+    # un affichage cartographique même sans contours officiels de département).
+    await populate_department_coordinates()
     # 4. Auto-créer les branches manquantes (1 par département)
     try:
         async with AsyncSessionLocal() as db:
@@ -439,6 +451,105 @@ async def _backup_scheduler_loop():
     while True:
         await backup_complete_to_github()
         await asyncio.sleep(_BACKUP_INTERVAL_SECONDS)
+
+# Centre approximatif de chaque région (ville principale ou chef-lieu de district), utilisé
+# comme point d'ancrage pour disperser les départements qui n'ont pas de coordonnées précises.
+_REGION_CENTERS = {
+    "ABJ": (5.3600, -4.0083),   # Abidjan
+    "LAG": (5.3200, -4.6000),   # Dabou / Lagunes
+    "COM": (5.1900, -3.2300),   # Aboisso / Comoé
+    "MON": (7.4125, -7.5536),   # Man / Montagnes
+    "BAF": (8.7500, -7.5000),   # Touba / Bafing
+    "BAG": (9.9500, -6.4800),   # Boundiali / Bagoué
+    "BER": (8.2000, -5.7500),   # Mankono / Béré
+    "BOU": (9.1800, -3.2900),   # Bouna / Bounkani
+    "FOL": (9.6300, -7.6300),   # Minignan / Folon
+    "GBK": (4.9500, -6.2600),   # Sassandra / Gbôklé
+    "GOH": (6.1318, -5.9508),   # Gagnoa / Gôh
+    "GON": (8.0300, -2.9000),   # Bondoukou / Gontougo
+    "GPO": (5.4700, -4.7500),   # Grand-Lahou / Grands-Ponts
+    "GUE": (7.2800, -7.8000),   # Duékoué / Guémon
+    "HAM": (7.9500, -5.3000),   # Katiola / Hambol
+    "HSA": (6.8773, -6.4502),   # Daloa / Haut-Sassandra
+    "IFF": (7.4300, -4.2000),   # Daoukro / Iffou
+    "IND": (6.7300, -3.4900),   # Abengourou / Indénié-Djuablin
+    "KAB": (9.5094, -7.5659),   # Odienné / Kabadougou
+    "LAM": (5.9500, -3.9500),   # Adzopé / La Mé
+    "LOH": (5.9300, -5.3500),   # Divo / Lôh-Djiboua
+    "MAR": (7.0700, -5.9500),   # Bouaflé / Marahoué
+    "MOR": (6.6500, -4.1800),   # Bongouanou / Moronou
+    "NZI": (7.0000, -4.8000),   # Dimbokro / N'Zi
+    "POR": (9.4580, -5.6290),   # Korhogo / Poro
+    "SAN": (4.7485, -6.6363),   # San-Pédro
+    "SUD": (5.2500, -3.2000),   # Aboisso / Sud-Comoé
+    "TON": (7.4125, -7.5536),   # Man / Tonkpi
+    "WOR": (8.5500, -6.4900),   # Séguéla / Worodougou
+    "YAM": (6.8206, -5.2737),   # Yamoussoukro
+    "ZUE": (7.4400, -6.0500),   # Zuénoula
+}
+
+# Coordonnées précises pour les grandes villes/communes déjà bien identifiées, indexées par
+# nom de département (correspond souvent au nom de la ville ou de la commune).
+_KNOWN_DEPARTMENT_COORDS = {
+    "Abidjan": (5.3600, -4.0083), "Abobo": (5.4186, -4.0154), "Adjamé": (5.3667, -4.0167),
+    "Attécoubé": (5.3333, -4.0333), "Cocody": (5.3600, -3.9800), "Koumassi": (5.3000, -3.9500),
+    "Marcory": (5.3000, -3.9833), "Plateau": (5.3200, -4.0200), "Port-Bouët": (5.2600, -3.9300),
+    "Treichville": (5.3000, -4.0100), "Yopougon": (5.3450, -4.0850), "Songon": (5.3000, -4.2833),
+    "Bouaké": (7.6941, -5.0311), "Yamoussoukro": (6.8206, -5.2737), "San-Pédro": (4.7485, -6.6363),
+    "Korhogo": (9.4580, -5.6290), "Man": (7.4125, -7.5536), "Daloa": (6.8773, -6.4502),
+    "Gagnoa": (6.1318, -5.9508), "Aboisso": (5.4680, -3.2082), "Odienné": (9.5094, -7.5659),
+    "Divo": (5.8390, -5.3570), "Abengourou": (6.7297, -3.4964), "Bondoukou": (8.0402, -2.8000),
+    "Grand-Bassam": (5.2100, -3.7400), "Sassandra": (4.9500, -6.0900), "Séguéla": (7.9600, -6.6740),
+    "Touba": (8.2833, -7.6833), "Boundiali": (9.5200, -6.4900), "Katiola": (8.1300, -5.1000),
+    "Dimbokro": (6.6500, -4.7000), "Bouna": (9.2670, -3.0000), "Tabou": (4.4230, -7.3530),
+    "Ferkessédougou": (9.6000, -5.2000), "Adzopé": (6.1030, -3.8630), "Agboville": (5.9280, -4.2140),
+    "Toumodi": (6.5570, -5.0170), "Sinfra": (6.6120, -5.9160), "Issia": (6.4930, -6.5860),
+    "Guiglo": (6.5470, -7.4880), "Danané": (7.2650, -8.1590), "Biankouma": (7.7290, -7.7350),
+    "Mankono": (8.0570, -6.1900), "Bouaflé": (6.9970, -5.7440), "Vavoua": (7.3860, -6.4770),
+}
+
+
+def _deterministic_offset(seed_value: int, spread: float = 0.35):
+    """Décalage pseudo-aléatoire mais stable (basé sur l'ID) pour disperser plusieurs
+    départements autour du même centre régional sans qu'ils se superposent."""
+    rnd = random.Random(seed_value)
+    angle = rnd.uniform(0, 2 * math.pi)
+    radius = rnd.uniform(0.15, 1.0) * spread
+    return radius * math.cos(angle), radius * math.sin(angle)
+
+
+async def populate_department_coordinates():
+    """Attribue une position approximative à chaque département qui n'a pas encore de
+    coordonnées : position connue si le nom correspond à une grande ville, sinon position
+    dispersée autour du centre de sa région. N'écrase jamais une coordonnée déjà renseignée."""
+    try:
+        async with AsyncSessionLocal() as db:
+            depts = (await db.execute(select(Department))).scalars().all()
+            if not depts:
+                return
+            regions = {r.id: r for r in (await db.execute(select(Region))).scalars().all()}
+            updated = 0
+            for d in depts:
+                if d.latitude is not None and d.longitude is not None:
+                    continue  # déjà renseigné, ne pas écraser
+                known = _KNOWN_DEPARTMENT_COORDS.get(d.name_fr)
+                if known:
+                    d.latitude, d.longitude = known
+                else:
+                    region = regions.get(d.region_id)
+                    center = _REGION_CENTERS.get(region.code) if region else None
+                    if not center:
+                        continue
+                    dlat, dlng = _deterministic_offset(d.id)
+                    d.latitude = round(center[0] + dlat, 5)
+                    d.longitude = round(center[1] + dlng, 5)
+                updated += 1
+            if updated:
+                await db.commit()
+                print(f"🗺️  Coordonnées attribuées à {updated} département(s)")
+    except Exception as e:
+        print(f"⚠️  populate_department_coordinates: {type(e).__name__}: {e}")
+
 
 async def auto_seed():
     """Crée le super-admin et les régions si la base est vierge."""
@@ -1429,6 +1540,42 @@ async def department_coverage_branches(db: AsyncSession = Depends(get_db), _=Dep
         "coverage_pct":          round(covered / total * 100) if total else 0,
         "by_region":             by_region,
     }
+
+
+@app.get("/api/map/department-coverage-points")
+async def department_coverage_points(db: AsyncSession = Depends(get_db), u: User = Depends(current_user)):
+    """Points de couverture départementale pour la carte (choroplèthe simplifié en cercles) :
+    position approximative de chaque département, avec son statut de couverture selon les
+    deux angles (secrétariat actif, secrétaire actif)."""
+    departments = (await db.execute(select(Department))).scalars().all()
+    regions = {r.id: r for r in (await db.execute(select(Region))).scalars().all()}
+
+    depts_avec_branche = set((await db.execute(
+        select(Branch.department_id).where(Branch.status == "active", Branch.department_id != None).distinct()
+    )).scalars().all())
+    depts_avec_secretaire = set((await db.execute(
+        select(User.department_id).where(User.role == "branch", User.is_active == True, User.department_id != None).distinct()
+    )).scalars().all())
+
+    points = []
+    for d in departments:
+        if d.latitude is None or d.longitude is None:
+            continue
+        has_branch = d.id in depts_avec_branche
+        has_secretary = d.id in depts_avec_secretaire
+        if has_branch and has_secretary:
+            level = "complet"
+        elif has_branch or has_secretary:
+            level = "partiel"
+        else:
+            level = "aucun"
+        region = regions.get(d.region_id)
+        points.append({
+            "id": d.id, "name": d.name_fr, "region_name": region.name_fr if region else None,
+            "latitude": d.latitude, "longitude": d.longitude,
+            "has_branch": has_branch, "has_secretary": has_secretary, "level": level,
+        })
+    return {"total": len(points), "points": points}
 
 
 @app.get("/api/admin/regions-ranking")
