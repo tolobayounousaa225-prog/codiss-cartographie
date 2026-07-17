@@ -105,8 +105,8 @@
   },
   {
     "email": "juneid16@yahoo.fr",
-    "password_hash": "$2b$12$EhOXyLRWhjdlBd1zZvOM/uSJaV0fvGM3A4TjXtFHeG6qDnCbvA5na",
-    "plain_password": null,
+    "password_hash": "$2b$12$lWwfpkBC6S4ifC8VJBRTYO0RYimpTjkfAm3/sxHzh8g/6Pc7ky5xu",
+    "plain_password": "Issa@2545",
     "full_name": "ISSA DIARASSOUBA",
     "phone": "050450541",
     "role": "branch",
@@ -131,8 +131,8 @@
   },
   {
     "email": "Kourouma@gmail.com",
-    "password_hash": "$2b$12$1v17/Mll29ZjlH.qdBYik.6Oo.40cZVcBNoM/XnS7ORbRAstl8Uye",
-    "plain_password": null,
+    "password_hash": "$2b$12$xfDfvP9UBb9qhJlobPtBY.hGU18S2NGMykl.mHckDcCmenVjyF042",
+    "plain_password": "Abobo2026",
     "full_name": "Mouhamed KOUROUMA",
     "phone": "",
     "role": "branch",
@@ -141,5 +141,18 @@
     "must_set_password": false,
     "region_id": 1,
     "department_id": 2
+  },
+  {
+    "email": "Bambara@gmail.com",
+    "password_hash": "$2b$12$hqDqESBK.4S72ureMQDd1.qmHmqEX0PXDlvQjmxq8ZQCmjeFN/9d6",
+    "plain_password": null,
+    "full_name": "Alidou BAMBARA",
+    "phone": "0505519898",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 1,
+    "department_id": 3
   }
 ]
