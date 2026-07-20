@@ -206,5 +206,18 @@
     "must_set_password": false,
     "region_id": 1,
     "department_id": 1
+  },
+  {
+    "email": "kidri@gmail.com",
+    "password_hash": "$2b$12$sOXJEZPeFzjOY/BgZqXX0.Hz6EeCuCAJmLbx9LFLZTEX7uXq.vbBW",
+    "plain_password": null,
+    "full_name": "Kidri Haidara",
+    "phone": "0708371519",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 1,
+    "department_id": 4
   }
 ]
