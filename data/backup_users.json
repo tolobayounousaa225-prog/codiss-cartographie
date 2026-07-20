@@ -232,5 +232,18 @@
     "must_set_password": false,
     "region_id": 1,
     "department_id": 5
+  },
+  {
+    "email": "Zigane@gmail.com",
+    "password_hash": "$2b$12$8sf/hFaxFMbtfbrsXINy6exRh3o55xch2LnSt.2bXYYvQ9ZbFjoIW",
+    "plain_password": null,
+    "full_name": "Issa Zigane",
+    "phone": "0715272929",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 1,
+    "department_id": 6
   }
 ]
