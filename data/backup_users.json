@@ -271,5 +271,18 @@
     "must_set_password": false,
     "region_id": 25,
     "department_id": 84
+  },
+  {
+    "email": "Sylla@gmail.com",
+    "password_hash": "$2b$12$gv11ub21e6hq2TzA14A.o.TnCIYAPaucWG1ka9a/CdAEDWJImA2b.",
+    "plain_password": null,
+    "full_name": "IBRAHIM SYLLA",
+    "phone": "07 77 47 24 26",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 30,
+    "department_id": 102
   }
 ]
