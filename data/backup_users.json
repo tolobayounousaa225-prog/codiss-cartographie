@@ -310,5 +310,18 @@
     "must_set_password": false,
     "region_id": 2,
     "department_id": 13
+  },
+  {
+    "email": "Zalle@gmail.com",
+    "password_hash": "$2b$12$12RR8w2xNYRnID6Vfyt1getn.NAHF/8UVqMndh8otphMOANtPDlTy",
+    "plain_password": null,
+    "full_name": "zalle aboubacar",
+    "phone": "07 47 07 11 27",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 13,
+    "department_id": 48
   }
 ]
