@@ -336,5 +336,18 @@
     "must_set_password": false,
     "region_id": 15,
     "department_id": 53
+  },
+  {
+    "email": "karamoko@gmail.com",
+    "password_hash": "$2b$12$WA/szC.nkITI3eHzprJ4m.F7Q8vzlY6CLLBaWXqaR4GH5O6fJd5Xq",
+    "plain_password": null,
+    "full_name": "Karamoko kallou",
+    "phone": "0747748611",
+    "role": "branch",
+    "language": "fr",
+    "is_active": true,
+    "must_set_password": false,
+    "region_id": 5,
+    "department_id": 24
   }
 ]
